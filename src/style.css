@@ -1,0 +1,383 @@
+/* 移动优先：主要使用场景是吃饭时掏手机。
+   颜色全部走变量，深色模式只覆盖变量、不动任何组件规则。 */
+:root {
+  color-scheme: light dark;
+
+  --bg: #f7f3ec;
+  --card: #ffffff;
+  --ink: #2f2a25;
+  --muted: #8c8378;
+  --line: #e8e0d4;
+  --brand: #e2703a;
+  --good: #3f9d6b;
+  --warn: #c94f4f;
+  --star: #f0a828;
+  --on-brand: #ffffff;
+  --focus-ring: rgba(226, 112, 58, .35);
+
+  /* 浅色块：原先散落在各处的 #fff8f2 / #fbf8f2 / #f2ece1 之类 */
+  --brand-soft: #fff8f2;
+  --tint: #fbf8f2;
+  --chip: #f2ece1;
+  --chip-2: #f6f1e8;
+  --tag-bg: #f1ece3;
+  --tag-lit-bg: #fdf0d6;
+  --tag-lit-ink: #a5701a;
+  --tag-out-bg: #fbe9e9;
+  --star-btn-bg: #fffaf0;
+  --star-btn-hover: #fdf1d9;
+  --warn-btn-bg: #fff6f6;
+  --warn-btn-hover: #fdecec;
+  --star-empty: #ddd3c6;
+
+  /* 两条横幅 */
+  --warnbar-bg: #fdf0e6;
+  --warnbar-line: #f2ddc2;
+  --warnbar-ink: #7a4a20;
+  --tip-bg: #eef4fb;
+  --tip-line: #cfe0f2;
+  --tip-ink: #2f4f6f;
+
+  --radius: 14px;
+}
+
+/* 深色模式：只换颜色变量。跟随系统，不做手动开关 ——
+   多一个开关就多一个要记的状态，而操作系统已经统一管了。 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14120f;
+    --card: #1e1b18;
+    --ink: #ece6dc;
+    --muted: #9a9188;
+    --line: #332f2a;
+    --brand: #ef7f48;
+    --good: #59b885;
+    --warn: #e06767;
+    --star: #f0b445;
+    --on-brand: #ffffff;
+    --focus-ring: rgba(239, 127, 72, .45);
+
+    --brand-soft: #2a1d15;
+    --tint: #221f1b;
+    --chip: #2b2721;
+    --chip-2: #262220;
+    --tag-bg: #2b2721;
+    --tag-lit-bg: #3a2c16;
+    --tag-lit-ink: #f0b445;
+    --tag-out-bg: #3a1f1f;
+    --star-btn-bg: #2a2418;
+    --star-btn-hover: #3a3120;
+    --warn-btn-bg: #2e1c1c;
+    --warn-btn-hover: #3a2323;
+    --star-empty: #4a443c;
+
+    --warnbar-bg: #3a2a18;
+    --warnbar-line: #5a4227;
+    --warnbar-ink: #e8c99a;
+    --tip-bg: #1b2a3a;
+    --tip-line: #2c4055;
+    --tip-ink: #a9c8e6;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 9px 14px;
+}
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.sm { padding: 4px 9px; font-size: 13px; }
+button.danger { color: var(--warn); }
+button.link {
+  border: 0; background: transparent; color: var(--brand);
+  padding: 4px 6px; font-size: 13px; text-decoration: underline;
+}
+.btn-primary { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
+/* 危险操作放顶栏，用实心红而非红字，避免在一堆白底按钮里看不出来；
+   点击仍有 confirm 二次确认，不会误触就清数据。 */
+.btn-danger { background: var(--warn); color: var(--on-brand); border-color: var(--warn); }
+.btn-danger:hover { filter: brightness(.94); }
+
+input {
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  width: 100%;
+}
+input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 0;      /* 按需求去圆角；想连按钮、结果框一起扁平，把上面的 --radius 改 0 */
+  padding: 16px;
+}
+
+.muted { color: var(--muted); font-size: 13px; }
+.error { color: var(--warn); font-size: 13px; white-space: pre-wrap; }
+.ok { color: var(--good); font-size: 13px; }
+.panel-title {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px; flex-wrap: wrap; margin: 0 0 10px;
+}
+.panel-title h2 { font-size: 16px; margin: 0; }
+
+.warn-bar {
+  background: var(--warnbar-bg); border-bottom: 1px solid var(--warnbar-line);
+  color: var(--warnbar-ink); font-size: 13px; padding: 10px 16px;
+}
+/* 来源提示用蓝色区分于黄/红警告：它说的是"你换了个桶"，不是数据出问题 */
+.warn-bar.tip {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--tip-bg); border-bottom-color: var(--tip-line); color: var(--tip-ink);
+}
+.tip-close {
+  flex: none; border: 0; background: transparent; color: inherit;
+  font-size: 16px; line-height: 1; padding: 0 2px; opacity: .65;
+}
+.tip-close:hover { opacity: 1; }
+
+/* ---------- 顶栏与餐别 ---------- */
+.topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; background: var(--card);
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 10;
+}
+.topbar strong { font-size: 16px; white-space: nowrap; }
+.topbar .muted { flex: 1; }
+.topbar-actions { display: flex; gap: 6px; flex: none; }
+
+/* 窄屏（手机竖屏）下顶栏放不下标题 + 日期 + 三个按钮，
+   先牺牲日期，再收紧按钮内边距，避免标题被挤成两行 */
+@media (max-width: 430px) {
+  .topbar { gap: 8px; padding: 10px 12px; }
+  .topbar .muted { display: none; }
+  .topbar strong { flex: 1; }
+  .topbar-actions button { padding: 8px 10px; font-size: 14px; }
+}
+
+/* 分类标签：无内边距、无间隙、无圆角；分类多时横向滚动 */
+.meal-tabs {
+  display: flex; align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.meal-tabs::-webkit-scrollbar { display: none; }
+
+.meal-tabs .tab {
+  display: flex; align-items: center; gap: 2px; flex: none;
+  border: 1px solid var(--line); border-radius: 0;
+  background: var(--card); padding-right: 3px;
+  /* 间隙变成 0 后，相邻两个标签会各带一条 1px 边框，看起来像 2px 粗线。
+     用 -1px 外边距让相邻边框重叠成一条，这是标签条去掉间距后的必须配套动作。 */
+  margin-right: -1px;
+}
+.meal-tabs .tab.on { background: var(--brand); border-color: var(--brand); }
+.tab-label {
+  border: 0; background: transparent; color: inherit;
+  padding: 10px 9px; font-weight: 600; white-space: nowrap; border-radius: 0;
+}
+.meal-tabs .tab.on .tab-label { color: var(--on-brand); }
+.tab-act {
+  border: 0; background: transparent; color: inherit; opacity: .7;
+  padding: 2px 5px; font-size: 13px; border-radius: 0;
+}
+.meal-tabs .tab.on .tab-act { color: var(--on-brand); opacity: .9; }
+.tab-act:hover { opacity: 1; }
+.tab-add {
+  flex: none; min-width: 46px; padding: 10px 0;
+  border: 1px solid var(--line); border-style: dashed; border-radius: 0;
+  font-size: 17px; color: var(--brand);
+  margin-right: -1px;
+  /* 分类多了以后标签条会横向滚动，＋ 会被推到可视区外。
+     吸附在右侧边缘，保证任何时候都看得到、点得到。 */
+  position: sticky; right: 0; z-index: 2;
+  background: var(--card);
+}
+.tab-edit { width: 120px; padding: 8px 9px; border-radius: 0; border: 0; background: transparent; color: inherit; }
+.meal-tabs .tab.on .tab-edit { color: var(--on-brand); }
+/* 全局聚焦环是橘色，叠在橘色选中标签上几乎看不见；
+   而新建分类时这个输入框会自动聚焦，环就是唯一的"你在编辑"信号 */
+.meal-tabs .tab.on .tab-edit:focus { outline-color: rgba(255, 255, 255, .75); }
+.tab-limit { align-self: center; flex: none; padding-left: 8px; }
+
+.layout {
+  display: grid; grid-template-columns: 1fr; gap: 14px;
+  padding: 0;            /* 按需求去内边距：两栏铺到屏幕左右边缘，上下也无留白 */
+}
+@media (min-width: 900px) {
+  .layout { grid-template-columns: 380px 1fr; align-items: start; max-width: 1180px; margin: 0 auto; }
+}
+
+/* ---------- 今日概览：竖排列表，一行一个分类 ---------- */
+/* 原来是横向格子，分类一多就被挤得很窄；改成列表后每个分类独占一行，
+   多了就自然往下排，不需要横向滚动。 */
+.today-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.today-list li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 2px; border-bottom: 1px solid var(--line);
+  font-size: 14px; cursor: pointer;
+}
+.today-list li.now { background: var(--brand-soft); }
+.tl-name {
+  flex: none; max-width: 38%; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.today-list li.now .tl-name { color: var(--brand); font-weight: 700; }
+.tl-dish { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-list li.pending .tl-dish { color: var(--brand); font-weight: 600; }
+.today-list li.done .tl-dish { color: var(--good); }
+.tl-flag { flex: none; color: var(--star); font-size: 12px; }
+.tl-flag.skip { color: var(--muted); }
+
+/* ---------- 候选 ---------- */
+.pick-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; padding: 0; list-style: none; }
+.pick-list li {
+  display: flex; align-items: center; gap: 4px;
+  background: var(--chip); border-radius: 999px; padding: 5px 6px 5px 12px; font-size: 14px;
+}
+.pick-list li button { border: 0; background: transparent; padding: 0 4px; color: var(--muted); font-size: 16px; }
+.star-mini { color: var(--star); font-size: 12px; }
+
+/* ---------- 抽签与结果 ---------- */
+/* 两个掷按钮并排：左侧是不看勾选的「全部随机」，右侧是常规「掷一个」 */
+.draw-row { display: flex; gap: 8px; margin-top: 12px; align-items: stretch; }
+.draw-btn {
+  flex: 1 1 auto; padding: 16px 0; font-size: 18px; font-weight: 700;
+  border-radius: var(--radius);
+  background: var(--brand); color: var(--on-brand); border-color: var(--brand);
+}
+/* 次要动作：白底橙字描边，不与主按钮抢注意力 */
+.draw-alt {
+  flex: 0 0 auto; padding: 0 14px; font-size: 15px; font-weight: 700;
+  border-radius: var(--radius);
+  background: var(--card); color: var(--brand); border-color: var(--brand);
+}
+.draw-alt:hover { background: var(--brand-soft); }
+.all-draw { display: block; width: 100%; margin-top: 6px; text-align: center; }
+
+.result {
+  margin-top: 14px; padding: 18px 14px; text-align: center;
+  border: 2px dashed var(--line); border-radius: var(--radius);
+  min-height: 92px; display: grid; place-content: center; gap: 8px;
+}
+.result.has { border-style: solid; border-color: var(--brand); background: var(--brand-soft); }
+.result .dish-name { font-size: 26px; font-weight: 700; }
+.result .empty { color: var(--muted); }
+
+/* 掷的过程：滚动展示候选名，纯视觉反馈。
+   注意这只是动画，真正的结果由服务端式抽签（crypto）决定，动画不参与。 */
+.result.rolling { border-style: solid; border-color: var(--star); background: var(--tint); }
+.result.rolling .dish-name { animation: roll .14s linear infinite alternate; }
+@keyframes roll {
+  from { transform: translateY(-3px); opacity: .5; }
+  to   { transform: translateY(3px); opacity: 1; }
+}
+
+.stars { display: flex; gap: 2px; justify-content: center; font-size: 26px; line-height: 1; }
+.stars span { color: var(--star-empty); }
+.stars span.on { color: var(--star); }
+.stars.readonly span { cursor: default; }
+
+.rate-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.rate-row.compact { margin-top: 4px; }
+.rate-star { padding: 8px 12px; border-color: var(--star); color: var(--star); font-weight: 600; background: var(--star-btn-bg); }
+.rate-star:hover { background: var(--star-btn-hover); }
+.rate-zero { padding: 8px 12px; border-color: var(--warn); color: var(--warn); background: var(--warn-btn-bg); }
+.rate-zero:hover { background: var(--warn-btn-hover); }
+
+/* ---------- 历史 ---------- */
+.link-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.history { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+.history-day { display: flex; flex-wrap: wrap; gap: 6px; padding: 5px 0; font-size: 13px; border-bottom: 1px dashed var(--line); }
+.history-date { color: var(--muted); flex: none; }
+.history-item { background: var(--chip-2); border-radius: 8px; padding: 1px 8px; }
+.history-item b { color: var(--star); font-weight: 600; margin-left: 3px; }
+.history-item i { color: var(--muted); font-style: normal; margin-left: 3px; }
+
+/* ---------- 统计 ---------- */
+.stats { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; font-size: 13px; }
+.stat-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; padding: 4px 0; border-bottom: 1px dashed var(--line);
+}
+.stat-row:last-of-type { border-bottom: 0; }
+.stat-row b { font-weight: 600; text-align: right; }
+.stat-block { margin-top: 10px; }
+.oldest { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+.oldest .history-item b { color: var(--star); }
+
+/* ---------- 菜库（自己的榜） ---------- */
+.sort-switch { display: flex; gap: 4px; }
+.sort-switch button { padding: 4px 9px; font-size: 12px; border-radius: 999px; }
+.sort-switch button.on { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
+
+/* 输入框 + 加入：强制一行。全局 input 的 width:100% 在 flex 容器里
+   会把两个元素顶得挤出宽度，所以这里改成 flex 伸缩 + min-width:0，
+   同时把按钮锁成 flex:none，窄屏下也不会被压扁掉行。 */
+.add-row {
+  display: flex; flex-wrap: nowrap; align-items: center;
+  gap: 8px; margin-bottom: 10px;
+}
+.add-row input {
+  flex: 1 1 auto; width: auto; min-width: 0;
+  padding: 6px 10px; font-size: 14px;
+}
+.add-row .btn-primary { flex: none; padding: 6px 14px; font-size: 14px; }
+
+.dish-wrap { border-bottom: 1px solid var(--line); }
+.dish-wrap:last-of-type { border-bottom: 0; }
+.dish-wrap.out { opacity: .6; }
+.dish-row { display: flex; align-items: center; gap: 8px; padding: 8px 2px; }
+.dish-row input[type='checkbox'] { width: 20px; height: 20px; flex: none; accent-color: var(--brand); margin: 0; }
+.dish-row .rank { width: 20px; text-align: right; color: var(--muted); font-size: 12px; flex: none; }
+.dish-row .name {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  cursor: default;
+}
+.dish-wrap.picked .name { color: var(--brand); font-weight: 600; }
+.dish-row .meta { font-size: 12px; color: var(--muted); flex: none; }
+.dish-row .edit-input { flex: 1; min-width: 0; padding: 5px 8px; }
+.row-actions { display: flex; gap: 2px; flex: none; }
+.row-actions button { border: 0; background: transparent; padding: 3px 5px; font-size: 14px; color: var(--muted); }
+
+.tag {
+  font-size: 11px; padding: 2px 7px; border-radius: 999px; flex: none;
+  background: var(--tag-bg); color: var(--muted); border: 0;
+}
+.tag.lit { background: var(--tag-lit-bg); color: var(--tag-lit-ink); }
+.tag.out { background: var(--tag-out-bg); color: var(--warn); }
+.tag.clickable { cursor: pointer; }
+.tag.clickable:hover { filter: brightness(.94); }
+
+.star-editor {
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+  padding: 8px 4px 12px 30px; background: var(--tint); border-radius: 10px;
+}
+.legend { margin-top: 12px; line-height: 1.7; }
+/* 分享入口放在清单底部：它属于低频动作，不该占顶栏位置 */
+.share-row { display: flex; gap: 12px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.dish-row.empty { justify-content: center; padding: 18px 0; }

@@ -1,0 +1,23 @@
+{
+  "name": "meal-roulette",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "node scripts/check-weight.mjs && node scripts/check-store.mjs && node scripts/check-share.mjs",
+    "audit": "node scripts/audit.mjs"
+  },
+  "dependencies": {
+    "vue": "^3.5.44"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.4",
+    "vite": "^6.0.0"
+  }
+}
