@@ -177,6 +177,11 @@ const s3 = S.stats(ageTab.id);
 check('最久没掷到的首项是"从未"（daysAgo 为 null）', s3.oldest[0].daysAgo === null, s3.oldest[0].name);
 check('本分类掷出次数计得上', s3.times === 1, String(s3.times));
 
+// 出现次数榜：掷过的进榜，没掷过的（0 次）不进
+check('出现次数前三只收掷过的条目',
+  s3.topDrawn.length === 1 && s3.topDrawn[0].name === '掷过的' && s3.topDrawn[0].times === 1,
+  s3.topDrawn.map((x) => `${x.name}×${x.times}`).join(', ') || '空');
+
 console.log('');
 console.log('=== 边界：掷出后条目被删，还能评分吗 ===');
 const orphanTab = S.addTab().tab;
@@ -239,6 +244,47 @@ check('昨天的历史抽签记录读得回来（没丢）',
   !!lunchTab && L.recordOf('2026-10-22', lunchTab.id)?.name === '黄焖鸡'
   && L.recordOf('2026-10-22', lunchTab.id)?.stars === 4);
 check('0 星的旧条目仍在池中判定正确', L.inPool(L.dishes().find((d) => d.name === '水煮鱼')) === false);
+
+console.log('');
+console.log('=== 统计：出现次数前三 ===');
+// 「每天一次」约束下没法在同一实例里跨天掷签，导入一份构造好的存档来造多日记录
+const topSnap = {
+  v: 2, seq: 10, tabSeq: 2,
+  tabs: [{ id: 'eat', name: '晚餐' }],
+  dishes: [
+    { id: 1, tab: 'eat', name: '甲', stars: null, createdAt: 'x' },
+    { id: 2, tab: 'eat', name: '乙', stars: null, createdAt: 'x' },
+    { id: 3, tab: 'eat', name: '丙', stars: null, createdAt: 'x' },
+    { id: 4, tab: 'eat', name: '丁', stars: null, createdAt: 'x' },
+    { id: 5, tab: 'eat', name: '戊', stars: null, createdAt: 'x' },
+    { id: 6, tab: 'eat', name: '己', stars: null, createdAt: 'x' },
+  ],
+  picks: { eat: [] },
+  draws: {
+    '2026-10-13': { eat: { dishId: 1, name: '甲', stars: null, status: 'rated', at: 'x' } },
+    '2026-10-14': { eat: { dishId: 1, name: '甲', stars: null, status: 'rated', at: 'x' } },
+    '2026-10-15': { eat: { dishId: 1, name: '甲', stars: null, status: 'rated', at: 'x' } },
+    '2026-10-16': { eat: { dishId: 2, name: '乙', stars: null, status: 'rated', at: 'x' } },
+    '2026-10-17': { eat: { dishId: 2, name: '乙', stars: null, status: 'rated', at: 'x' } },
+    '2026-10-18': { eat: { dishId: 3, name: '丙', stars: null, status: 'rated', at: 'x' } },
+    '2026-10-19': { eat: { dishId: 4, name: '丁', stars: null, status: 'rated', at: 'x' } },
+    '2026-10-20': { eat: { dishId: 5, name: '戊', stars: null, status: 'rated', at: 'x' } },
+  },
+};
+const topImp = S.importJson(JSON.stringify(topSnap));
+check('构造存档导入成功', !topImp.error, topImp.error ?? `${topImp.tabs} 个分类`);
+const stTop = S.stats('eat');
+// 甲×3、乙×2 必占前二；第三名是 丙/丁/戊 之一（都 1 次，稳定排序不逐一断言）；
+// 己从没掷过（0 次）不进榜，且总数封顶 3 —— 丁/戊即使掷过也挤不进榜
+check('按次数降序取前三，0 次不进榜',
+  stTop.topDrawn.length === 3
+  && stTop.topDrawn[0].name === '甲' && stTop.topDrawn[0].times === 3
+  && stTop.topDrawn[1].name === '乙' && stTop.topDrawn[1].times === 2
+  && stTop.topDrawn[2].times === 1,
+  stTop.topDrawn.map((x) => `${x.name}×${x.times}`).join(', '));
+check('计数按天累计（甲 3 天、乙 2 天）',
+  stTop.topDrawn[0].times === 3 && stTop.topDrawn[1].times === 2 && stTop.times === 8,
+  `共 ${stTop.times} 天有记录`);
 
 console.log('');
 console.log(failed === 0 ? '全部通过' : `有 ${failed} 项失败`);

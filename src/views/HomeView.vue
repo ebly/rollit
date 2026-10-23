@@ -243,25 +243,35 @@ function onSkip() {
 }
 
 /**
- * 一次掷今天全部分类。
- * 已掷过的分类跳过（draw 本身幂等，这里跳过只是为了不把"已经掷过"当成失败提示）。
- * 掷完后自动切到第一个新掷出的分类，否则用户看不到任何结果。
+ * 一次掷今天全部：对每个「今天还没掷过」的分类各掷一次，一律走全部随机
+ * （无视勾选，从整个分类的可用项里抽）。
+ * 已经掷过的分类直接跳过 —— 不重复掷、不当失败；
+ * 没有可掷项的（空分类或全 0 星）也跳过，只在结果里告知，不阻断其他分类。
+ * 掷完自动切到第一个新掷出的分类，否则用户看不到任何结果。
  */
 function onDrawAll() {
   error.value = '';
-  const done = [];
-  const failed = [];
+  const drawn = [];
+  const empty = [];
   let firstNew = null;
   for (const t of tabs.value) {
-    if (recOf(t.id)) continue;
-    const res = draw(t.id);
-    if (res.error) { failed.push(`${t.name}：${res.error}`); continue; }
-    if (!res.already) { done.push(t.name); firstNew = firstNew ?? t.id; }
+    if (recOf(t.id)) continue;                    // 抛过的就不管
+    const res = draw(t.id, { scope: 'all' });     // 全部随机：不看勾选
+    if (res.error) { empty.push(t.name); continue; }
+    if (res.already) continue;                    // 防御：上面已按今日记录跳过，理论上到不了
+    drawn.push(t.name);
+    firstNew = firstNew ?? t.id;
   }
   if (firstNew) tab.value = firstNew;
-  if (done.length) flash(`已掷：${done.join('、')}`);
-  else if (failed.length) fail(failed.join('；'));
-  else flash('所有分类今天都已经掷过了');
+  if (drawn.length) {
+    flash(empty.length
+      ? `已掷：${drawn.join('、')}（${empty.join('、')} 没有可掷的项，已跳过）`
+      : `已掷：${drawn.join('、')}`);
+  } else if (empty.length) {
+    fail(`没有可掷的分类：${empty.join('、')}（还没有条目，或全被打成 0 星）`);
+  } else {
+    flash('所有分类今天都已经掷过了');
+  }
 }
 
 /* ---------- 备份 ---------- */
@@ -353,7 +363,14 @@ function onClear() {
       </template>
       <template v-else>
         <button class="tab-label" @click="tab = t.id">{{ t.name }}</button>
-        <button class="tab-act" v-if="tab === t.id" title="改这个名字" aria-label="改分类名" @click="startTabRename(t)">✎</button>
+        <!-- 与菜谱行的改名按钮同款 SVG 图标：字符 ✎ 是文字字形，
+             和 emoji/文本混排时大小不可控，SVG 固定尺寸且继承 currentColor -->
+        <button class="tab-act" v-if="tab === t.id" title="改这个名字" aria-label="改分类名" @click="startTabRename(t)">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+          </svg>
+        </button>
         <button class="tab-act" v-if="tab === t.id && tabs.length > 1" title="删除这个分类" aria-label="删除这个分类" @click="onRemoveTab(t)">×</button>
       </template>
     </div>
@@ -409,7 +426,9 @@ function onClear() {
         </button>
       </div>
       </template>
-      <button class="link all-draw" v-if="tabs.length > 1" :disabled="allDrawn" @click="onDrawAll">
+      <!-- 每个今天还没掷过的分类各掷一个，一律全部随机（不看勾选）；抛过的跳过 -->
+      <button class="link all-draw" v-if="tabs.length > 1" :disabled="allDrawn" @click="onDrawAll"
+              title="每个今天还没掷过的分类各掷一个（全部随机，不看勾选）；已经掷过的跳过">
         {{ allDrawn ? '今天全部分类都已掷' : `一次掷今天全部（${tabs.length} 个分类）` }}
       </button>
 
@@ -476,9 +495,6 @@ function onClear() {
       </div>
 
       <div v-if="statsData" class="stats">
-        <div class="stat-row"><span>分类数</span><b>{{ statsData.tabs }}</b></div>
-        <div class="stat-row"><span>条目总数（全部）</span><b>{{ statsData.dishesTotal }}</b></div>
-        <div class="stat-row"><span>有记录的天数</span><b>{{ statsData.daysWithRecord }}</b></div>
         <div class="stat-row">
           <span>「{{ statsData.tabName }}」可掷 / 已出池</span>
           <b>{{ statsData.poolCount }} / {{ statsData.retiredCount }}</b>
@@ -488,7 +504,7 @@ function onClear() {
           <b>{{ statsData.times }} 次<span class="muted">（近 7 天 {{ statsData.recent7 }}）</span></b>
         </div>
         <div class="stat-row">
-          <span>平均星级</span>
+          <span>「{{ statsData.tabName }}」平均星级</span>
           <b>{{ statsData.avgStars === null ? '还没有评分' : statsData.avgStars.toFixed(2) }}</b>
         </div>
 
@@ -502,13 +518,15 @@ function onClear() {
           <span class="muted" v-else>这个分类还没有条目。</span>
         </div>
 
-        <div class="stat-block" v-if="statsData.tabs > 1">
-          <span class="muted">各分类掷出次数</span>
-          <div class="oldest">
-            <span v-for="t in statsData.perTab" :key="t.id" class="history-item">
-              {{ t.name }}<b>{{ t.times }} 次</b><i>· {{ t.items }} 项</i>
+        <!-- 出现最多次数的前三：只列掷过的，0 次不进榜；整个 tab 还没掷过时给一句兜底 -->
+        <div class="stat-block">
+          <span class="muted">「{{ statsData.tabName }}」出现最多次的</span>
+          <div class="oldest" v-if="statsData.topDrawn.length">
+            <span v-for="t in statsData.topDrawn" :key="t.id" class="history-item">
+              {{ t.name }}<b>{{ t.times }} 次</b>
             </span>
           </div>
+          <span class="muted" v-else>这个分类还没掷过</span>
         </div>
       </div>
     </section>
@@ -557,8 +575,21 @@ function onClear() {
           <span class="meta">选中 {{ d.drawn }}</span>
 
           <div class="row-actions">
-            <button @click="startEdit(d)" title="改名" aria-label="改名">✎</button>
-            <button class="danger" @click="onRemove(d)" title="删除" aria-label="删除条目">🗑</button>
+            <!-- 图标用内联 SVG 而非字符：✎ 是文字字形、🗑 是 emoji，
+                 两者走完全不同的渲染通道，字号永远对不齐（手机上一个小一个大）。
+                 SVG 固定 20×20 且继承 currentColor，任何设备等大、随配色变量变色。 -->
+            <button @click="startEdit(d)" title="改名" aria-label="改名">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+              </svg>
+            </button>
+            <button class="danger" @click="onRemove(d)" title="删除" aria-label="删除条目">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" />
+              </svg>
+            </button>
           </div>
         </div>
 

@@ -36,10 +36,11 @@ const empty = () => ({
   v: 2,
   seq: 1,
   tabSeq: 1,
-  // 默认分类名取中性词：这个站是通用抽签器，不该预设成"吃什么"。
+  // 默认分类直接叫「晚餐」：这个工具的主场景就是每天中午晚上发愁吃什么，
+  // 与其给个中性的「默认」再让每个人手动改名，不如一步到位。
   // id 仍然是 'eat' 且刻意不改 —— picks 与 draws 都以 tabId 为键，
   // 改 id 会让所有已有候选池和历史记录失联（只是显示名换了，不影响数据）。
-  tabs: [{ id: 'eat', name: '默认' }],
+  tabs: [{ id: 'eat', name: '晚餐' }],
   dishes: [],
   picks: { eat: [] },
   draws: {},   // { 'YYYY-MM-DD': { [tabId]: {dishId,name,stars,status,at} } }
@@ -460,6 +461,20 @@ export function stats(tabId) {
     })
     .slice(0, 3);
 
+  // 当前 tab 内每道菜被掷中的次数：draws 是 {日期: {tabId: 记录}}，
+  // 一个 tab 一天只记一条，所以计数就是"被掷中的天数"。
+  const drawnTimes = new Map();
+  for (const [, byTab] of drawsEntries) {
+    const rec = byTab?.[tabId];
+    if (rec?.dishId) drawnTimes.set(rec.dishId, (drawnTimes.get(rec.dishId) ?? 0) + 1);
+  }
+  // 出现最多次数的前三；0 次（从没掷到过）的不进榜 —— 这是常客榜，不是全员名单
+  const topDrawn = dishes
+    .map((d) => ({ id: d.id, name: d.name, times: drawnTimes.get(d.id) ?? 0 }))
+    .filter((d) => d.times > 0)
+    .sort((a, b) => b.times - a.times)
+    .slice(0, 3);
+
   return {
     tabName: tabName(tabId),
     tabs: tabList().length,
@@ -475,12 +490,7 @@ export function stats(tabId) {
       return gap >= 0 && gap < 7;
     }).length,
     oldest,
-    perTab: tabList().map((t) => ({
-      id: t.id,
-      name: t.name,
-      items: dishesOf(t.id).length,
-      times: timesOf(t.id),
-    })),
+    topDrawn,
   };
 }
 

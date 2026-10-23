@@ -13,4 +13,9 @@ export default defineConfig({
   base: './',
   plugins: [vue()],
   build: { outDir: 'dist' },
+  server: {
+    // 监听所有网卡，否则默认只绑定 localhost，局域网手机访问不到
+    host: '0.0.0.0',
+    port: 5173,
+  },
 });

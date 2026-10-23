@@ -207,6 +207,8 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 }
 .meal-tabs .tab.on .tab-act { color: var(--on-brand); opacity: .9; }
 .tab-act:hover { opacity: 1; }
+/* 与 .row-actions 同款：SVG 块级化，消除行内元素下行间隙 */
+.tab-act svg { display: block; }
 .tab-add {
   flex: none; min-width: 46px; padding: 10px 0;
   border: 1px solid var(--line); border-style: dashed; border-radius: 0;
@@ -363,6 +365,8 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 .dish-row .edit-input { flex: 1; min-width: 0; padding: 5px 8px; }
 .row-actions { display: flex; gap: 2px; flex: none; }
 .row-actions button { border: 0; background: transparent; padding: 3px 5px; font-size: 14px; color: var(--muted); }
+/* SVG 图标按钮：块级化消除行内元素的下行间隙，保证两个图标垂直居中对齐 */
+.row-actions button svg { display: block; }
 
 .tag {
   font-size: 11px; padding: 2px 7px; border-radius: 999px; flex: none;
