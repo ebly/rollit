@@ -2,3 +2,5 @@ node_modules/
 dist/
 *.local
 .DS_Store
+# 浏览器自动化测试的临时产物（快照/截图），不该进仓库
+.playwright-cli/

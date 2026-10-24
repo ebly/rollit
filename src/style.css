@@ -84,7 +84,9 @@
 
 html, body {
   margin: 0;
-  padding: 0;
+  /* 底部安全区：viewport-fit=cover 下不加这条，standalone 模式里
+     最后一行会被屏幕底部的 home indicator 横条压住 */
+  padding: 0 0 env(safe-area-inset-bottom, 0px);
   background: var(--bg);
   color: var(--ink);
   font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -160,7 +162,8 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 /* ---------- 顶栏与餐别 ---------- */
 .topbar {
   display: flex; align-items: center; gap: 12px;
-  padding: 12px 16px; background: var(--card);
+  /* 顶部安全区：max() 保证在没有刘海/状态栏的设备上仍是原来的 12px */
+  padding: max(12px, env(safe-area-inset-top, 0px)) 16px 12px; background: var(--card);
   border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 10;
 }
@@ -171,7 +174,7 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 /* 窄屏（手机竖屏）下顶栏放不下标题 + 日期 + 三个按钮，
    先牺牲日期，再收紧按钮内边距，避免标题被挤成两行 */
 @media (max-width: 430px) {
-  .topbar { gap: 8px; padding: 10px 12px; }
+  .topbar { gap: 8px; padding: max(10px, env(safe-area-inset-top, 0px)) 12px 10px; }
   .topbar .muted { display: none; }
   .topbar strong { flex: 1; }
   .topbar-actions button { padding: 8px 10px; font-size: 14px; }
@@ -203,7 +206,7 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 .meal-tabs .tab.on .tab-label { color: var(--on-brand); }
 .tab-act {
   border: 0; background: transparent; color: inherit; opacity: .7;
-  padding: 2px 5px; font-size: 13px; border-radius: 0;
+  padding: 9px 6px; font-size: 13px; border-radius: 0;
 }
 .meal-tabs .tab.on .tab-act { color: var(--on-brand); opacity: .9; }
 .tab-act:hover { opacity: 1; }
@@ -306,7 +309,7 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 
 .rate-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
 .rate-row.compact { margin-top: 4px; }
-.rate-star { padding: 8px 12px; border-color: var(--star); color: var(--star); font-weight: 600; background: var(--star-btn-bg); }
+.rate-star { padding: 9px 13px; border-color: var(--star); color: var(--star); font-weight: 600; background: var(--star-btn-bg); }
 .rate-star:hover { background: var(--star-btn-hover); }
 .rate-zero { padding: 8px 12px; border-color: var(--warn); color: var(--warn); background: var(--warn-btn-bg); }
 .rate-zero:hover { background: var(--warn-btn-hover); }
@@ -334,7 +337,7 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 
 /* ---------- 菜库（自己的榜） ---------- */
 .sort-switch { display: flex; gap: 4px; }
-.sort-switch button { padding: 4px 9px; font-size: 12px; border-radius: 999px; }
+.sort-switch button { padding: 7px 10px; font-size: 12px; border-radius: 999px; }
 .sort-switch button.on { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
 
 /* 输入框 + 加入：强制一行。全局 input 的 width:100% 在 flex 容器里
@@ -346,9 +349,12 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 }
 .add-row input {
   flex: 1 1 auto; width: auto; min-width: 0;
-  padding: 6px 10px; font-size: 14px;
+  /* font-size 必须是 16px：iOS Safari 聚焦时会自动放大小于 16px 的输入框，
+     整个页面像被撑宽一样。这是移动端输入框的硬性下限，别为了紧凑改小。
+     （padding 从 8px 收到 6px，把 16px 字撑高的行高压回原来大小，布局不动） */
+  padding: 6px 12px; font-size: 16px;
 }
-.add-row .btn-primary { flex: none; padding: 6px 14px; font-size: 14px; }
+.add-row .btn-primary { flex: none; padding: 8px 14px; font-size: 14px; }
 
 .dish-wrap { border-bottom: 1px solid var(--line); }
 .dish-wrap:last-of-type { border-bottom: 0; }
@@ -368,6 +374,21 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 /* SVG 图标按钮：块级化消除行内元素的下行间隙，保证两个图标垂直居中对齐 */
 .row-actions button svg { display: block; }
 
+/* ---------- 移动端点击热区 ----------
+   视觉尺寸不变，用透明伪元素把可点区域向四周撑大 7px（合计约 34-40px），
+   让手指落点宽容一些。只对「四周没有其他可点元素」的小图标按钮用这一招，
+   避免抢到隔壁按钮的点击；有可点邻居的（分类操作、排序切换）走真实内边距。 */
+.row-actions button,
+.pick-list li button,
+.tag.clickable,
+.tip-close { position: relative; }
+.row-actions button::after,
+.pick-list li button::after,
+.tag.clickable::after,
+.tip-close::after {
+  content: ''; position: absolute; inset: -7px;
+}
+
 .tag {
   font-size: 11px; padding: 2px 7px; border-radius: 999px; flex: none;
   background: var(--tag-bg); color: var(--muted); border: 0;
@@ -385,3 +406,28 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 /* 分享入口放在清单底部：它属于低频动作，不该占顶栏位置 */
 .share-row { display: flex; gap: 12px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .dish-row.empty { justify-content: center; padding: 18px 0; }
+
+/* ---------- 应用内对话框 ----------
+   替代原生 confirm/prompt：手机上样式不割裂；分享码用多行等宽输入框，
+   长码能完整粘贴、编辑、一键全选。 */
+.modal-mask {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0, 0, 0, .45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal {
+  background: var(--card); color: var(--ink);
+  border-radius: var(--radius); box-shadow: 0 12px 40px rgba(0, 0, 0, .25);
+  width: 100%; max-width: 360px;
+  padding: 20px; display: flex; flex-direction: column; gap: 12px;
+}
+.modal-title { margin: 0; font-size: 17px; }
+.modal-msg { margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+.modal-input {
+  width: 100%; min-height: 76px; resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  /* 同 .add-row input：小于 16px 会让 iOS 聚焦时放大页面 */
+  font-size: 16px; line-height: 1.5;
+}
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }

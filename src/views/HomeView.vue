@@ -6,7 +6,7 @@ import {
   dishesOf, addDish, renameDish, removeDish, setStars,
   togglePick, picksOf, draw, rateToday, skipToday, recordOf,
   ranking, historyDesc, stats, exportJson, importJson, clearAll,
-  DEFAULT_STARS,
+  inPool, DEFAULT_STARS,
 } from '../store.js';
 import { makeShareCode, importShareCode } from '../share.js';
 
@@ -48,13 +48,31 @@ const board = computed(() => {
   return list;
 });
 
-const history = computed(() => historyDesc(30));
+/** 历史默认只铺最近 30 天，点「显示更早」每次多放 30 天。
+    数据层全量保留不删 —— 统计（共掷出次数、最久没掷到等）永远基于完整记录，
+    展示层按需展开，两者互不影响。 */
+const historyLimit = ref(30);
+const history = computed(() => historyDesc(historyLimit.value));
+/** 真实总天数。按钮文案和"还有多少天"都用它，不拿截断后的数量蒙人 */
+const historyTotal = computed(() => historyDesc(Infinity).length);
 
 /** 只在展开时计算：统计要看全部 draws，没必要一直算 */
 const statsData = computed(() => (showStats.value ? stats(tab.value) : null));
 /** 所有分类今天都已经掷过 —— 用来把「一次掷全部」置为不可点，
     否则按钮看着能点、点完只弹一句"都已掷过"，像是没反应 */
 const allDrawn = computed(() => tabs.value.length > 0 && tabs.value.every((t) => recOf(t.id)));
+/** 今天点了「一次掷全部」后真的会掷的分类数：没掷过 + 池子里有可掷的项。
+    按钮数字用它而不是 tabs.length —— 已掷过的和空分类点了也不会出结果，
+    标总数只会让人以为点了就有 N 个分类被掷。判定条件与 draw(scope:'all')
+    的候选过滤一致（dishesOf(t.id).filter(inPool)），预检为真就一定能掷出。 */
+const pendingCount = computed(() => tabs.value.filter(
+  (t) => !recOf(t.id) && dishesOf(t.id).some(inPool),
+).length);
+/** 按钮文案：有得掷就报真实待掷数；没得掷时区分"都掷过了"和"根本没得掷" */
+const allDrawLabel = computed(() => {
+  if (pendingCount.value > 0) return `一次掷今天全部（${pendingCount.value} 个分类）`;
+  return allDrawn.value ? '今天全部分类都已掷' : '没有可掷的分类（都是空的或全 0 星）';
+});
 /** 当前分类是否存在可掷的项（用于「全部随机」按钮的可用性） */
 const hasPool = computed(() => board.value.some((d) => d.pooled));
 
@@ -74,6 +92,40 @@ function flash(msg, kind = 'ok') {
   if (kind === 'ok') setTimeout(() => { if (notice.value === msg) notice.value = ''; }, 2500);
 }
 function fail(msg) { notice.value = ''; error.value = msg; }
+
+/* ---------- 应用内对话框（替代原生 confirm/prompt） ----------
+   手机上原生对话框样式割裂，且 prompt 没法舒服地粘贴/编辑长分享码，
+   统一换成应用内的确认/输入弹层。返回 Promise，调用处写法几乎不变。 */
+const dialog = ref(null);
+const dialogText = ref('');
+const dialogInput = ref(null);
+
+function askConfirm({ title, message, confirmLabel = '确定', danger = false }) {
+  return new Promise((resolve) => {
+    dialog.value = { kind: 'confirm', title, message, confirmLabel, danger, resolve };
+  });
+}
+function askPrompt({ title, message, placeholder = '', confirmLabel = '确定', text = '' }) {
+  dialogText.value = text;
+  return new Promise((resolve) => {
+    dialog.value = { kind: 'prompt', title, message, placeholder, confirmLabel, resolve };
+  });
+}
+function closeDialog(result) {
+  const d = dialog.value;
+  dialog.value = null;
+  dialogText.value = '';
+  d?.resolve(result);
+}
+// 弹层打开时锁背景滚动、关闭时恢复；输入型弹层自动聚焦并全选，方便直接粘贴
+watch(dialog, async (d) => {
+  document.body.style.overflow = d ? 'hidden' : '';
+  if (d?.kind === 'prompt') {
+    await nextTick();
+    dialogInput.value?.focus();
+    dialogInput.value?.select?.();
+  }
+});
 
 /* ---------- 分类标签 ---------- */
 
@@ -115,7 +167,12 @@ async function onRemoveTab(t) {
   if (res.error) return fail(res.error);
   if (res.needsConfirm) {
     // 分类里有菜，必须让用户知道删下去会连带消失多少条
-    if (!confirm(`删除「${res.tabName}」？里面的 ${res.dishCount} 条会一起删掉（历史抽签记录会保留）。`)) return;
+    const ok = await askConfirm({
+      title: `删除「${res.tabName}」？`,
+      message: `里面的 ${res.dishCount} 条会一起删掉（历史抽签记录会保留）。`,
+      confirmLabel: '删除', danger: true,
+    });
+    if (!ok) return;
     const done = removeTab(t.id, { force: true });
     if (done.error) return fail(done.error);
     flash(`已删除「${res.tabName}」及其 ${done.dishCount} 条`);
@@ -149,11 +206,17 @@ function cancelEdit() {
   renamingId.value = null;
 }
 function onRemove(d) {
-  if (!confirm(`删除「${d.name}」？它在今日候选里会被摘掉，历史抽签记录里的名字快照保留。`)) return;
-  removeDish(d.id);
-  if (starsOpenId.value === d.id) starsOpenId.value = null;
-  if (renamingId.value === d.id) renamingId.value = null;
-  flash('已删除');
+  askConfirm({
+    title: `删除「${d.name}」？`,
+    message: '它在今日候选里会被摘掉，历史抽签记录里的名字快照保留。',
+    confirmLabel: '删除', danger: true,
+  }).then((ok) => {
+    if (!ok) return;
+    removeDish(d.id);
+    if (starsOpenId.value === d.id) starsOpenId.value = null;
+    if (renamingId.value === d.id) renamingId.value = null;
+    flash('已删除');
+  });
 }
 function toggleStars(d) {
   starsOpenId.value = starsOpenId.value === d.id ? null : d.id;
@@ -243,35 +306,28 @@ function onSkip() {
 }
 
 /**
- * 一次掷今天全部：对每个「今天还没掷过」的分类各掷一次，一律走全部随机
+ * 一次掷今天全部：对每个「今天还能掷」的分类各掷一次，一律走全部随机
  * （无视勾选，从整个分类的可用项里抽）。
  * 已经掷过的分类直接跳过 —— 不重复掷、不当失败；
- * 没有可掷项的（空分类或全 0 星）也跳过，只在结果里告知，不阻断其他分类。
+ * 没有可掷项的（空分类或全 0 星）也跳过 —— 预检条件和按钮上的 pendingCount
+ * 是同一个，用户点之前就从数字上知道有几个分类会响应。
  * 掷完自动切到第一个新掷出的分类，否则用户看不到任何结果。
  */
 function onDrawAll() {
   error.value = '';
   const drawn = [];
-  const empty = [];
   let firstNew = null;
   for (const t of tabs.value) {
     if (recOf(t.id)) continue;                    // 抛过的就不管
+    if (!dishesOf(t.id).some(inPool)) continue;   // 空分类/全 0 星：没得掷，不当失败
     const res = draw(t.id, { scope: 'all' });     // 全部随机：不看勾选
-    if (res.error) { empty.push(t.name); continue; }
+    if (res.error) return fail(res.error);        // 预检通过还出错只可能是随机故障，直接报
     if (res.already) continue;                    // 防御：上面已按今日记录跳过，理论上到不了
     drawn.push(t.name);
     firstNew = firstNew ?? t.id;
   }
   if (firstNew) tab.value = firstNew;
-  if (drawn.length) {
-    flash(empty.length
-      ? `已掷：${drawn.join('、')}（${empty.join('、')} 没有可掷的项，已跳过）`
-      : `已掷：${drawn.join('、')}`);
-  } else if (empty.length) {
-    fail(`没有可掷的分类：${empty.join('、')}（还没有条目，或全被打成 0 星）`);
-  } else {
-    flash('所有分类今天都已经掷过了');
-  }
+  flash(drawn.length ? `已掷：${drawn.join('、')}` : '没有可掷的分类（都是空的或全被打成 0 星）');
 }
 
 /* ---------- 备份 ---------- */
@@ -313,7 +369,14 @@ async function onShare() {
       copied = true;
     } catch { copied = false; }
     if (copied) flash(`分享码已复制（${code.length} 字符），粘给对方就行`);
-    else window.prompt('复制这段分享码发给对方：', code);
+    else {
+      // 剪贴板不可用（如 file:// 非安全上下文）：弹出一个可全选复制的小窗
+      await askPrompt({
+        title: '复制这段分享码',
+        message: '剪贴板不可用，已全选下面的内容，复制后发给对方：',
+        text: code, confirmLabel: '复制好了',
+      });
+    }
   } catch (e) {
     fail(e.message);
   }
@@ -321,10 +384,15 @@ async function onShare() {
 
 /** 导入分享码：新增一个分类，不碰现有数据 */
 async function onImportCode() {
-  const code = window.prompt('把对方给的分享码粘到这里：');
-  if (!code) return;
+  const code = await askPrompt({
+    title: '粘贴导入分享码',
+    message: '把对方给的分享码粘到下面。导入后会新建一个分类，不影响你现有的数据。',
+    placeholder: 'ZYD1:...',
+    confirmLabel: '导入',
+  });
+  if (!code || !code.trim()) return;
   try {
-    const res = await importShareCode(code);
+    const res = await importShareCode(code.trim());
     tab.value = tabList().at(-1)?.id ?? tab.value;
     flash(`已导入「${res.tabName}」 ${res.count} 项${res.skipped ? `（跳过 ${res.skipped} 项重名）` : ''}`);
   } catch (e) {
@@ -332,8 +400,13 @@ async function onImportCode() {
   }
 }
 
-function onClear() {
-  if (!confirm('清空数据？所有分类、条目和历史记录都会被删掉，这一步不能撤销。建议先导出备份。')) return;
+async function onClear() {
+  const ok = await askConfirm({
+    title: '清空数据？',
+    message: '所有分类、条目和历史记录都会被删掉，这一步不能撤销。建议先导出备份。',
+    confirmLabel: '清空', danger: true,
+  });
+  if (!ok) return;
   clearAll();
   tab.value = tabList()[0]?.id ?? '';
   flash('已清空，只剩一个空分类');
@@ -426,10 +499,11 @@ function onClear() {
         </button>
       </div>
       </template>
-      <!-- 每个今天还没掷过的分类各掷一个，一律全部随机（不看勾选）；抛过的跳过 -->
-      <button class="link all-draw" v-if="tabs.length > 1" :disabled="allDrawn" @click="onDrawAll"
-              title="每个今天还没掷过的分类各掷一个（全部随机，不看勾选）；已经掷过的跳过">
-        {{ allDrawn ? '今天全部分类都已掷' : `一次掷今天全部（${tabs.length} 个分类）` }}
+      <!-- 每个今天还能掷的分类各掷一个，一律全部随机（不看勾选）；
+           括号里的数字是真实待掷数，已掷过的和空分类不计入 -->
+      <button class="link all-draw" v-if="tabs.length > 1" :disabled="pendingCount === 0" @click="onDrawAll"
+              title="每个今天还没掷过、且有可掷项的分类各掷一个（全部随机，不看勾选）；已经掷过的和空分类跳过">
+        {{ allDrawLabel }}
       </button>
 
       <div class="result" :class="{ has: record, rolling: spin }">
@@ -477,7 +551,7 @@ function onClear() {
 
       <div class="link-row" style="margin-top: 12px">
         <button class="link" @click="showHistory = !showHistory">
-          {{ showHistory ? '收起记录' : `看历史（${history.length} 天有记录）` }}
+          {{ showHistory ? '收起记录' : `看历史（${historyTotal} 天有记录）` }}
         </button>
         <button class="link" @click="showStats = !showStats">
           {{ showStats ? '收起统计' : '看统计' }}
@@ -492,6 +566,13 @@ function onClear() {
           </span>
         </div>
         <p class="muted" v-if="!history.length">还没有抽签记录。</p>
+        <template v-else>
+          <button class="link" style="margin-top: 6px" v-if="history.length < historyTotal"
+                  @click="historyLimit += 30">
+            显示更早的 30 天（还有 {{ historyTotal - history.length }} 天）
+          </button>
+          <p class="muted" v-else>已经到底，没有更早的记录了</p>
+        </template>
       </div>
 
       <div v-if="statsData" class="stats">
@@ -543,7 +624,7 @@ function onClear() {
       </div>
 
       <div class="add-row">
-        <input v-model="newDishName" maxlength="24" placeholder="加一项，回车提交" @keyup.enter="onAdd" />
+        <input v-model="newDishName" maxlength="24" placeholder="加一项" @keyup.enter="onAdd" />
         <button class="btn-primary" @click="onAdd">加入</button>
       </div>
 
@@ -617,4 +698,22 @@ function onClear() {
       </div>
     </section>
   </main>
+
+  <!-- 应用内对话框：确认型用按钮，输入型用多行文本框；点遮罩或按 Esc 取消 -->
+  <div class="modal-mask" v-if="dialog" @click.self="closeDialog(dialog.kind === 'confirm' ? false : null)">
+    <div class="modal" role="alertdialog" :aria-label="dialog.title"
+         @keydown.esc="closeDialog(dialog.kind === 'confirm' ? false : null)">
+      <h3 class="modal-title">{{ dialog.title }}</h3>
+      <p class="modal-msg">{{ dialog.message }}</p>
+      <textarea v-if="dialog.kind === 'prompt'" ref="dialogInput" v-model="dialogText"
+                class="modal-input" :placeholder="dialog.placeholder"></textarea>
+      <div class="modal-actions">
+        <button class="link" @click="closeDialog(dialog.kind === 'confirm' ? false : null)">取消</button>
+        <button :class="dialog.danger ? 'btn-danger' : 'btn-primary'"
+                @click="closeDialog(dialog.kind === 'confirm' ? true : dialogText.value)">
+          {{ dialog.confirmLabel }}
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
