@@ -25,11 +25,24 @@ import { weightOf, inPool, pickWeighted, randomFloat, DEFAULT_STARS } from './we
 const STORAGE_KEY = 'meal-roulette:v1';
 export const MAX_PICKS = 10;
 export const MAX_TABS = 8;
-export const MAX_TAB_NAME = 12;
+/* 分类名上限。标签条是横向滚动的，名字太长会把后面的分类挤出视野，
+   手机上一屏最多也就显示 3-4 个字；10 个字足够表达「午饭」「公司楼下」这类名字 */
+export const MAX_TAB_NAME = 10;
 
 /** v1 数据里的固定餐别，迁移时沿用为 tab id */
 const LEGACY_KEYS = ['breakfast', 'lunch', 'dinner'];
 const LEGACY_LABELS = { breakfast: '早餐', lunch: '中餐', dinner: '晚餐' };
+
+/* ------------------------------------------------------------
+ * 导入数据的最小可信校验。
+ * 每条规则都对应一个已复现的故障形态（见 migrate 注释），别删。
+ * ------------------------------------------------------------ */
+/** 只认普通对象：数组/字符串/null 按对象写入时会炸 TypeError */
+const isPlainObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+/** draws 的日期键只认 YYYY-MM-DD */
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** 导入数据里的 id/键长度上限 */
+const MAX_KEY_LEN = 64;
 
 /** 新的空档：只有一个分类 */
 const empty = () => ({
@@ -67,51 +80,119 @@ function freshState() {
 }
 
 /**
- * 把 v1（固定早中晚 + dish.meal）就地升级成 v2（自定义分类 + dish.tab）。
+ * 把外部数据（旧版本存档、导入的 JSON）整成可信结构。
  *
- * 关键：新 tab 直接沿用 breakfast/lunch/dinner 当 id，
- * 于是 picks 和 draws 的键【完全不用重写】，历史记录原样可读。
- * 若这里改成生成新 id，就必须同时重写 picks 与每一天的 draws，
- * 漏掉任何一处都是静默丢数据。
+ * 原则：字段级「宁丢勿放」——坏字段丢弃、好字段保留；
+ * 整份读不出来时由调用方备份原串（loadState）或整体拒绝（importJson）。
+ * 每一项校验都对应一个已复现的故障形态，别为了"宽容"把它们删掉：
+ *
+ *   tabs 非对象    → 两个 tab 的 id 都会变成 'undefined'，改名/删除全命中错对象
+ *   stars 非整数   → weightOf 得 NaN、inPool 为 false，条目被静默踢出随机池
+ *   draws 非对象   → draw() 对字符串属性赋值抛 TypeError，且会卡死整个 UI
+ *   dish.id 非正整数 → dishById 用 === 永久查不到，"删了"其实还在
+ *   seq 小于最大 id → addDish 新 id 撞车，改名/评分打错对象
  */
 function migrate(parsed) {
-  const s = { ...empty(), ...parsed, draws: parsed.draws ?? {} };
+  const s = { ...empty(), ...parsed };
 
-  if (Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
-    s.tabs = parsed.tabs.map((t) => ({ id: String(t.id), name: String(t.name ?? '') }));
+  /* ---- tabs：只收普通对象；id 非空、限长、去重、排除原型链键 ---- */
+  const seenIds = new Set();
+  const cleanTabs = (Array.isArray(parsed.tabs) ? parsed.tabs : [])
+    .filter(isPlainObj)
+    .map((t) => ({ id: String(t.id ?? ''), name: String(t.name ?? '') }))
+    .filter((t) => {
+      if (!t.id || t.id.length > MAX_KEY_LEN) return false;
+      if (t.id === '__proto__' || t.id === 'constructor' || t.id === 'prototype') return false;
+      if (seenIds.has(t.id)) return false;   // 重复 id 会让 picks/draws 张冠李戴
+      seenIds.add(t.id);
+      return true;
+    });
+
+  if (cleanTabs.length > 0) {
+    s.tabs = cleanTabs;
   } else {
     const seen = new Set(
-      (Array.isArray(parsed.dishes) ? parsed.dishes : []).map((d) => d.tab ?? d.meal).filter(Boolean)
+      (Array.isArray(parsed.dishes) ? parsed.dishes : []).filter(isPlainObj).map((d) => d.tab ?? d.meal).filter(Boolean)
     );
-    for (const key of Object.keys(parsed.picks ?? {})) seen.add(key);
-    for (const byTab of Object.values(parsed.draws ?? {})) {
-      for (const key of Object.keys(byTab ?? {})) seen.add(key);
+    for (const key of Object.keys(isPlainObj(parsed.picks) ? parsed.picks : {})) seen.add(key);
+    for (const byTab of Object.values(isPlainObj(parsed.draws) ? parsed.draws : {})) {
+      if (isPlainObj(byTab)) for (const key of Object.keys(byTab)) seen.add(key);
     }
     // 先按固定餐别的顺序，再追加任何自定义键，保证顺序稳定可预期
-    const ordered = [...LEGACY_KEYS.filter((k) => seen.has(k)), ...[...seen].filter((k) => !LEGACY_KEYS.includes(k))];
+    const ordered = [...LEGACY_KEYS.filter((k) => seen.has(k)), ...[...seen].filter((k) => !LEGACY_KEYS.includes(k) && k.length <= MAX_KEY_LEN && k !== '__proto__')];
     const keys = ordered.length ? ordered : ['eat'];
     s.tabs = keys.map((id) => ({ id, name: LEGACY_LABELS[id] ?? String(id) }));
     s.tabSeq = keys.length + 1;
   }
 
   const valid = new Set(s.tabs.map((t) => t.id));
-  // 逐条把旧 meal 字段换成 tab，并删掉 meal。
-  // 只改新字段不删旧字段的话，每个条目会同时带着 meal 和 tab 两份冗余数据。
-  s.dishes = (Array.isArray(parsed.dishes) ? parsed.dishes : []).map((d) => {
-    const { meal, ...rest } = d;
-    const tabId = d.tab ?? meal;
-    return { ...rest, tab: valid.has(tabId) ? tabId : s.tabs[0].id };
-  });
 
+  /* ---- dishes：id 必须是正整数且不重复；stars 只接受 null 或 0-5 整数，其余按未评 ---- */
+  const dishIds = new Set();
+  s.dishes = (Array.isArray(parsed.dishes) ? parsed.dishes : [])
+    .filter(isPlainObj)
+    .map((d) => {
+      const { meal, ...rest } = d;
+      const id = Number(d.id);
+      if (!Number.isInteger(id) || id < 1 || dishIds.has(id)) return null;
+      const tabId = d.tab ?? meal;
+      const stars = d.stars == null ? null : Number(d.stars);
+      return {
+        ...rest,
+        id,
+        tab: valid.has(tabId) ? tabId : s.tabs[0].id,
+        name: String(d.name ?? ''),
+        stars: Number.isInteger(stars) && stars >= 0 && stars <= 5 ? stars : null,
+        createdAt: String(d.createdAt ?? ''),
+      };
+    })
+    .filter((d) => {
+      if (!d) return false;
+      dishIds.add(d.id);
+      return true;
+    });
+
+  /* ---- picks：只保留整数条目，免得 togglePick 的 indexOf 对字符串 id 失灵 ---- */
   const picks = {};
-  for (const t of s.tabs) picks[t.id] = Array.isArray(parsed.picks?.[t.id]) ? parsed.picks[t.id] : [];
+  for (const t of s.tabs) {
+    picks[t.id] = (Array.isArray(parsed.picks?.[t.id]) ? parsed.picks[t.id] : []).filter(Number.isInteger);
+  }
   s.picks = picks;
 
-  s.seq = Number(parsed.seq) || s.dishes.reduce((m, d) => Math.max(m, d.id), 0) + 1;
-  s.tabSeq = Number(parsed.tabSeq) || s.tabs.length + 1;
+  /* ---- draws：只保留 { YYYY-MM-DD: { 已知tabId: 记录 } }，其余整层丢弃 ---- */
+  const draws = {};
+  if (isPlainObj(parsed.draws)) {
+    for (const [day, byTab] of Object.entries(parsed.draws)) {
+      if (!DAY_RE.test(day) || !isPlainObj(byTab)) continue;
+      const clean = {};
+      for (const [tabId, rec] of Object.entries(byTab)) {
+        if (!valid.has(tabId) || !isPlainObj(rec)) continue;
+        const st = rec.stars == null ? null : Number(rec.stars);
+        clean[tabId] = {
+          dishId: Number(rec.dishId),
+          name: String(rec.name ?? ''),
+          stars: Number.isInteger(st) && st >= 0 && st <= 5 ? st : null,
+          status: String(rec.status ?? 'pending'),
+          at: String(rec.at ?? ''),
+        };
+      }
+      draws[day] = clean;
+    }
+  }
+  s.draws = draws;
+
+  // seq = 下一个可用 id：导入声明的值和已有最大 id 都可能不可信，取大者
+  const maxId = s.dishes.reduce((m, d) => Math.max(m, d.id), 0);
+  s.seq = Math.max(Number(parsed.seq) || 0, maxId + 1);
+  s.tabSeq = Math.max(Number(parsed.tabSeq) || 0, s.tabs.length + 1);
   s.v = 2;
   return s;
 }
+
+/** 坏档备份的实际键名。首次损坏用 :corrupt；再次损坏带序号，不覆盖更早的备份 */
+export const corruptKeyRef = ref(null);
+/** localStorage 写入失败（配额满）时为 true，App.vue 据此提示——静默吞掉等于欺骗用户 */
+export const storageWarnRef = ref(false);
 
 /**
  * 读盘。任何解析异常或结构不合预期都退回空结构，
@@ -131,8 +212,14 @@ function loadState() {
     if (!parsed || !Array.isArray(parsed.dishes)) throw new Error('结构不符');
     return { state: ref(migrate(parsed)) };
   } catch {
-    // 坏数据留着但不覆盖：先备份一份，再开新档，原始串还能人工找回
-    try { localStorage.setItem(`${STORAGE_KEY}:corrupt`, raw); } catch { /* 存不下就算了 */ }
+    // 坏数据留着但不覆盖：先备份一份（更早的备份不被覆盖），再开新档，原始串还能人工找回
+    try {
+      let key = `${STORAGE_KEY}:corrupt`;
+      let n = 0;
+      while (localStorage.getItem(key) !== null) key = `${STORAGE_KEY}:corrupt:${++n}`;
+      localStorage.setItem(key, raw);
+      corruptKeyRef.value = key;
+    } catch { /* 存不下就算了 */ }
     return { state: ref(freshState()), corrupted: true };
   }
 }
@@ -141,13 +228,32 @@ const { state, storageBlocked, corrupted } = loadState();
 export const storageBlockedRef = storageBlocked === true;
 export const corruptedRef = corrupted === true;
 
-// 深度监听落盘。单人自用，数据量最多几千条，watch 的开销可以忽略；
-// 真要膨胀到几万条再换节流。
-watch(state, (s) => {
+// 深度监听落盘，防抖 300ms：重度存档（实测 732 KB）单次全量序列化约 6.7ms，
+// 连续点击时不重复序列化。写失败不再静默——静默吞掉 QuotaExceededError
+// 等于"用户以为存了，关页面全丢"，比报错更糟，所以置 storageWarnRef 让界面提示。
+// 页面隐藏/关闭时立即补写，避免防抖窗口内丢最后一步操作。
+let writeTimer = null;
+function flushWrite() {
+  clearTimeout(writeTimer);
+  writeTimer = null;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-  } catch { /* 配额满了就只在内存里用，不让界面崩 */ }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.value));
+    storageWarnRef.value = false;
+  } catch {
+    storageWarnRef.value = true;
+  }
+}
+watch(state, () => {
+  clearTimeout(writeTimer);
+  writeTimer = setTimeout(flushWrite, 300);
 }, { deep: true });
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', flushWrite);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushWrite();
+  });
+}
 
 /* ------------------------------------------------------------
  * 日界：锁死在 UTC+8，不跟随设备时区。
@@ -190,10 +296,16 @@ export function addTab() {
   const s = state.value;
   if (s.tabs.length >= MAX_TABS) return { error: `最多建 ${MAX_TABS} 个分类` };
 
-  const id = `t${s.tabSeq++}`;
+  // 撞 id 比"id 唯一"危险得多：picks/draws 都以 id 为键，导入存档的
+  // tabSeq 与已有 tabs 不一致（手工构造/跨版本）时不查重会顶掉一个
+  // 已存在分类的候选池。生成到不撞为止。
+  let id;
+  do { id = `t${s.tabSeq++}`; } while (s.tabs.some((t) => t.id === id) || id in s.picks);
   let n = 1;
-  let name = `新分类 ${s.tabs.length + 1}`;
-  while (s.tabs.some((t) => t.name === name)) name = `新分类 ${++n}`;
+  // 不带空格：名称输入已经限死「汉字/字母/数字」，
+  // 默认名要是带空格，用户一编辑就会被过滤成另一个名字
+  let name = `新分类${s.tabs.length + 1}`;
+  while (s.tabs.some((t) => t.name === name)) name = `新分类${++n}`;
 
   const tab = { id, name };
   s.tabs.push(tab);
@@ -319,7 +431,9 @@ export function togglePick(id) {
  * 抽签与记录
  * ------------------------------------------------------------ */
 
-export function recordOf(day = today(), tabId = 'eat') {
+// tabId 不设默认值：'eat' 只是当前默认分类的 id，删掉它之后
+// 省略参数的调用会静默查无此键——强制显式传参，把诱饵接口堵掉。
+export function recordOf(day = today(), tabId) {
   return state.value.draws?.[day]?.[tabId] ?? null;
 }
 
@@ -358,6 +472,9 @@ export function draw(tabId, { scope = 'picks' } = {}) {
     status: 'pending',     // pending | rated | skipped
     at: new Date().toISOString(),
   };
+  // 双保险：migrate 已保证 draws 是普通对象，这里防任何漏过 sanitize 的
+  // 路径（直接改 state 的调试代码/未来新入口）把 UI 卡死在 TypeError 上
+  if (!isPlainObj(state.value.draws)) state.value.draws = {};
   (state.value.draws[day] ??= {})[tabId] = record;
   return { record, already: false };
 }
@@ -504,6 +621,12 @@ export function historyDesc(limit = 60) {
         .filter((t) => recs?.[t.id])
         .map((t) => ({ tab: t.id, tabName: t.name, ...recs[t.id] })),
     }));
+}
+
+/** 有记录的日期数。draws 的键数就是天数——比 historyDesc(Infinity) 全量排序便宜，
+ *  给"看历史（N 天有记录）"的按钮文案用，折叠着也该有正确数字。 */
+export function recordDayCount() {
+  return Object.keys(state.value.draws ?? {}).length;
 }
 
 /* ------------------------------------------------------------

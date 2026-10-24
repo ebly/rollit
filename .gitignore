@@ -4,3 +4,7 @@ dist/
 .DS_Store
 # 浏览器自动化测试的临时产物（快照/截图），不该进仓库
 .playwright-cli/
+# 审计报告等本地产出，不进仓库
+.workbuddy/
+*.log
+.env*

@@ -15,6 +15,8 @@ createApp(App).mount('#app');
  */
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => { /* 装不上就算了 */ });
+    // updateViaCache:'none'：检查 SW 更新时不走 HTTP 缓存。
+    // 规范上浏览器拉 sw.js 本就绕过 SW 的 fetch 事件，这是廉价保险。
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(() => { /* 装不上就算了 */ });
   });
 }

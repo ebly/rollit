@@ -6,16 +6,10 @@
  * 于是 share 新建的分类在本文件里根本看不到（测出来就是"只新增了 0 个分类"）。
  * 不同进程之间不会有冲突，所以直接无 query 引同一个实例即可。
  */
-const store = new Map();
-globalThis.localStorage = {
-  getItem: (k) => (store.has(k) ? store.get(k) : null),
-  setItem: (k, v) => store.set(k, String(v)),
-  removeItem: (k) => store.delete(k),
-};
-if (!globalThis.crypto) {
-  const { webcrypto } = await import('node:crypto');
-  globalThis.crypto = webcrypto;
-}
+import { installNodeShims } from './_node-shim.mjs';
+
+// 垫片抽到 _node-shim.mjs 共用；store 句柄本文件用不到，只装全局。
+await installNodeShims();
 
 // btoa/atob 在 Node 16+ 有全局实现；Blob/CompressionStream 在 18 里也有。
 // 这里只做能力探测并如实打印，缺了就说明当前环境走的是降级分支。

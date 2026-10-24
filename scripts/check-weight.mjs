@@ -9,13 +9,13 @@ import {
   weightOf, inPool, pickWeighted, randomFloat, DEFAULT_STARS,
 } from '../src/weight.js';
 
+import { installNodeShims } from './_node-shim.mjs';
+
 // 浏览器里 globalThis.crypto 一直存在，网站本身不依赖这一段。
-// 但验证脚本跑在 Node 上：全局 crypto 是 Node 20 才有的，本开发环境固定用 18.16.1，
-// 不补就会 ReferenceError: crypto is not defined。
-if (!globalThis.crypto) {
-  const { webcrypto } = await import('node:crypto');
-  globalThis.crypto = webcrypto;
-}
+// 但验证脚本跑在 Node 上：全局 crypto 是 Node 19+ 才有的，
+// 低版本 Node 不补就会 ReferenceError: crypto is not defined
+// （当前开发环境 v22 本来就有，这是给老 Node 的兜底）。
+await installNodeShims();
 
 const dish = (name, stars) => ({ id: name, name, meal: 'lunch', stars, createdAt: '' });
 

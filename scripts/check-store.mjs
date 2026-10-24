@@ -8,18 +8,11 @@
  *   A. 改名会不会丢候选池和历史抽签记录（键如果用的是名字，一定会丢）
  *   B. 旧版固定三餐的数据能不能平滑升级（不能丢历史，也不能白屏）
  */
-const store = new Map();
-globalThis.localStorage = {
-  getItem: (k) => (store.has(k) ? store.get(k) : null),
-  setItem: (k, v) => store.set(k, String(v)),
-  removeItem: (k) => store.delete(k),
-};
+import { installNodeShims } from './_node-shim.mjs';
 
-// 全局 crypto 是 Node 20+ 才有的；浏览器里本来就有，这里只为让脚本能在 18 上跑。
-if (!globalThis.crypto) {
-  const { webcrypto } = await import('node:crypto');
-  globalThis.crypto = webcrypto;
-}
+// localStorage + crypto 垫片抽到 _node-shim.mjs 共用。
+// store 句柄要留着：下面换装旧版数据时要直接往里写。
+const { store } = await installNodeShims();
 
 let failed = 0;
 const check = (label, ok, extra = '') => {
@@ -227,10 +220,11 @@ const legacy = {
   picks: { lunch: [1, 2], breakfast: [3], dinner: [] },
   draws: { '2026-10-22': { lunch: { dishId: 1, name: '黄焖鸡', stars: 4, status: 'rated', at: 'x' } } },
 };
-// 上一个模块实例的 watch 是异步 flush 的。之前没等它写完就 import，
-// 旧状态会在 import 的微任务间隙里反过来覆盖掉塞进去的旧版数据，
-// 导致"迁移测试"实际测的还是内存里的当前状态（假通过）。先等它写完。
-await new Promise((r) => setTimeout(r, 30));
+// 上一个模块实例的落盘是防抖的（300ms）。没等它写完就 import，
+// 旧状态会在 import 的异步间隙里反过来覆盖掉塞进去的旧版数据，
+// 导致"迁移测试"实际测的还是内存里的当前状态（假通过）。
+// 防抖窗口是 300ms，等 400ms 确保那一次落盘已经发生。
+await new Promise((r) => setTimeout(r, 400));
 store.set('meal-roulette:v1', JSON.stringify(legacy));
 
 const L = await import('../src/store.js?case=legacy');
@@ -285,6 +279,41 @@ check('按次数降序取前三，0 次不进榜',
 check('计数按天累计（甲 3 天、乙 2 天）',
   stTop.topDrawn[0].times === 3 && stTop.topDrawn[1].times === 2 && stTop.times === 8,
   `共 ${stTop.times} 天有记录`);
+
+console.log('');
+console.log('=== 病态存档 sanitize（导入加固回归）===');
+// 每一条都对应一个曾复现的故障形态，防回归。
+// a) tabs 为非对象数组：曾经两个 tab 的 id 都会变成 'undefined'
+S.importJson(JSON.stringify({ v: 2, seq: 1, tabSeq: 1, tabs: [1, 2], dishes: [], picks: {}, draws: {} }));
+check('tabs 非对象数组不产生重复 id',
+  new Set(S.tabList().map((t) => t.id)).size === S.tabList().length);
+
+// b) stars 非整数：曾经 weightOf 得 NaN、inPool 为 false，条目被静默踢出池
+S.importJson(JSON.stringify({ v: 2, seq: 2, tabSeq: 1, tabs: [{ id: 'eat', name: '晚餐' }], dishes: [{ id: 1, tab: 'eat', name: '怪星', stars: 'abc', createdAt: 'x' }], picks: { eat: [] }, draws: {} }));
+const weird = S.dishById(1);
+check('stars 非整数按未评处理，不出池', weird && weird.stars === null && S.inPool(weird));
+
+// c) draws 为字符串：曾经 draw() 抛 TypeError，且定时器泄漏、掷按钮永久禁用
+S.importJson(JSON.stringify({ v: 2, seq: 2, tabSeq: 1, tabs: [{ id: 'eat', name: '晚餐' }], dishes: [{ id: 1, tab: 'eat', name: '甲', stars: 3, createdAt: 'x' }], picks: { eat: [1] }, draws: 'corrupted-string' }));
+const afterBadDraws = S.draw('eat');
+check('draws 非对象时 draw() 不抛错且能正常掷', !afterBadDraws.error && !!afterBadDraws.record);
+
+// d) seq 小于已有最大 id：曾经 addDish 新 id 撞车，改名/评分打错对象
+//    注意：dishById 返回的是响应式代理对象，不能和 addDish 的原始返回值比 ===，
+//    要比行为（按 id 查得到、名字对得上）。
+S.importJson(JSON.stringify({ v: 2, seq: 2, tabSeq: 1, tabs: [{ id: 'eat', name: '晚餐' }], dishes: [{ id: 1, tab: 'eat', name: '甲', stars: null, createdAt: 'x' }, { id: 100, tab: 'eat', name: '乙', stars: null, createdAt: 'x' }], picks: { eat: [] }, draws: {} }));
+const fresh = S.addDish('eat', '丙').dish;
+check('seq 小于最大 id 时新条目不撞车',
+  fresh.id !== 1 && fresh.id !== 100 && S.dishById(fresh.id)?.name === '丙');
+
+// e) dishes 里混 null：曾经 migrate 直接 TypeError（导入文件读不出来的元凶之一）
+const nullDish = S.importJson(JSON.stringify({ v: 2, seq: 2, tabSeq: 1, tabs: [{ id: 'eat', name: '晚餐' }], dishes: [null, { id: 1, tab: 'eat', name: '甲', stars: null, createdAt: 'x' }], picks: { eat: [] }, draws: {} }));
+check('dishes 含 null 不抛错，坏条目被丢弃', !nullDish.error && S.dishes().length === 1);
+
+// f) addTab 撞已有 id：曾经直接顶掉被撞分类的候选池
+S.importJson(JSON.stringify({ v: 2, seq: 3, tabSeq: 1, tabs: [{ id: 't1', name: '甲类' }], dishes: [{ id: 1, tab: 't1', name: '甲', stars: null, createdAt: 'x' }, { id: 2, tab: 't1', name: '乙', stars: null, createdAt: 'x' }], picks: { t1: [1, 2] }, draws: {} }));
+const addedTab = S.addTab();
+check('addTab 不撞已有 id 且不清空其候选池', !!addedTab.tab && addedTab.tab.id !== 't1' && S.picksOf('t1').length === 2);
 
 console.log('');
 console.log(failed === 0 ? '全部通过' : `有 ${failed} 项失败`);

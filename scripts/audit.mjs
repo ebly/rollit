@@ -13,17 +13,33 @@
  * 但每条都给出文件名和行号，方便人工核对。
  */
 import { readFileSync, readdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(root, p), 'utf8');
 
-const vueFiles = ['src/App.vue', 'src/views/HomeView.vue'];
+/** 递归列出 src 下所有 .vue（返回相对 root 的路径，read() 按相对路径拼）：
+    新增视图文件自动纳入审计，不靠手写清单 */
+function listVue(dir, base) {
+  const out = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) out.push(...listVue(p, base));
+    else if (e.name.endsWith('.vue')) out.push(relative(base, p).replace(/\\/g, '/'));
+  }
+  return out;
+}
+let vueFiles = [];
+try { vueFiles = listVue(join(root, 'src'), root); } catch { vueFiles = []; }
 const jsFiles = ['src/main.js', 'src/store.js', 'src/weight.js', 'src/share.js'];
-const scriptFiles = readdirSync(join(root, 'scripts'))
-  .filter((f) => f.endsWith('.mjs'))
-  .map((f) => `scripts/${f}`);
+// 读目录要兜底：scripts 不存在时抛 ENOENT 栈，不如当没脚本
+let scriptFiles = [];
+try {
+  scriptFiles = readdirSync(join(root, 'scripts'))
+    .filter((f) => f.endsWith('.mjs'))
+    .map((f) => `scripts/${f}`);
+} catch { scriptFiles = []; }
 
 const allFiles = [...vueFiles, ...jsFiles, ...scriptFiles];
 
@@ -50,8 +66,9 @@ for (const path of vueFiles) {
   }
   for (const h of handlers) {
     const defined = new RegExp(`(?:function\\s+${h}\\b|const\\s+${h}\\s*=|let\\s+${h}\\s*=|async\\s+function\\s+${h}\\b)`).test(script)
-      // 可能是从 store.js 直接导入的函数
-      || new RegExp(`\\b${h}\\b`).test(script);
+      // 也可能是从 store.js 直接导入的函数：宽松条件只认 import 形式。
+      // 曾经这里写的是 \b名字\b，结果"名字出现在注释里"也算已定义，检查形同虚设。
+      || new RegExp(`import\\s*\\{[^}]*\\b${h}\\b[^}]*\\}\\s*from`).test(script);
     if (!defined) note('ERROR', path, `模板绑定的处理函数 "${h}" 在 <script> 里找不到`);
   }
 }

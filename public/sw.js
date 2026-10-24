@@ -10,16 +10,30 @@
  *
  * 没有要缓存 API 数据 —— 这个站本来就没有后端请求，数据全在 localStorage。
  */
-const CACHE = 'zhiyige-v1';
+// 每次发布 +1（v2/v3…）：activate 靠缓存名差异清理旧资产，
+// 名字不变则旧版本的 hash 条目会永远留在缓存里逐版累积。
+const CACHE = 'zhiyige-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest'];
+
+// 首次访问即断网、或 install 失败后断网：给人话，而不是浏览器原生错误页
+const OFFLINE_PAGE = new Response(
+  '<!doctype html><html lang="zh-CN"><meta charset="utf-8">' +
+  '<meta name="viewport" content="width=device-width, initial-scale=1"><title>掷一个</title>' +
+  '<body style="margin:0;min-height:100vh;display:grid;place-content:center;text-align:center;' +
+  'font-family:system-ui,sans-serif;background:#f7f3ec;color:#2f2a25;padding:2rem">' +
+  '<h1 style="font-size:20px">现在没有网络</h1>' +
+  '<p style="font-size:14px;color:#7d7469">数据都在本机，连上网后刷新即可。</p></body></html>',
+  { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+);
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
       .then((c) => c.addAll(SHELL))
-      // 装好立刻接管，避免用户要刷新两次才生效
+      // 装好立刻接管，避免用户要刷新两次才生效。
+      // addAll 是原子操作：任一资源失败整个 shell 都不缓存，此时让 install
+      // 失败（浏览器会择机重试），而不是激活一个空壳 SW。
       .then(() => self.skipWaiting())
-      .catch(() => self.skipWaiting())
   );
 });
 
@@ -43,11 +57,14 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put('./index.html', copy)).catch(() => {});
+          // 只有 2xx 才配当离线壳：404/502 页存进去，离线用户看到的就是错误页
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put('./index.html', copy)).catch(() => {});
+          }
           return res;
         })
-        .catch(() => caches.match('./index.html').then((hit) => hit || Response.error()))
+        .catch(() => caches.match('./index.html').then((hit) => hit || OFFLINE_PAGE))
     );
     return;
   }

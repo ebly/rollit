@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import HomeView from './views/HomeView.vue';
-import { storageBlockedRef, corruptedRef } from './store.js';
+import { storageBlockedRef, corruptedRef, corruptKeyRef, storageWarnRef } from './store.js';
 
 const TIP_KEY = 'meal-roulette:originTipDismissed';
 
@@ -31,6 +31,11 @@ const originTip = computed(() => {
   if (hostname === '127.0.0.1') {
     return '你现在用 127.0.0.1 打开。浏览器把 127.0.0.1 和 localhost 当成两个不同来源，数据不互通。建议固定用其中一个地址。';
   }
+  // 局域网 IP（dev/preview 监听 0.0.0.0 的既定用法）是又一个独立存储桶。
+  // 只提示 http：正式部署走 https，那条提示对访客没有意义。
+  if (protocol === 'http:' && hostname !== 'localhost') {
+    return `你现在通过 ${hostname} 打开（http 局域网地址）。浏览器按来源隔离数据，它和 localhost、127.0.0.1、file:// 的数据互不相通——换一种方式打开会像是"数据丢了"。建议固定用一种打开方式。`;
+  }
   return '';
 });
 </script>
@@ -43,7 +48,10 @@ const originTip = computed(() => {
   </div>
   <div v-else-if="corruptedRef" class="warn-bar">
     之前存的档案读不出来，已重新开始。原始数据备份在 localStorage 的
-    <code>meal-roulette:v1:corrupt</code> 里，可以试试用下面的「导入」恢复。
+    <code>{{ corruptKeyRef || 'meal-roulette:v1:corrupt' }}</code> 里，可以试试用下面的「导入」恢复。
+  </div>
+  <div v-else-if="storageWarnRef" class="warn-bar">
+    这个浏览器的存储空间已经写满，最新改动可能没有保存成功——关掉页面就会丢。建议先「导出」备份，或清理浏览器数据后重新导入。
   </div>
 
   <div v-if="originTip && !tipDismissed" class="warn-bar tip">

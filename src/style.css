@@ -6,14 +6,28 @@
   --bg: #f7f3ec;
   --card: #ffffff;
   --ink: #2f2a25;
-  --muted: #8c8378;
+  --muted: #7d7469;   /* 加深至 ≈4.6:1（原 #8c8378 仅 3.73:1，13px 辅助文字不达 WCAG AA） */
   --line: #e8e0d4;
-  --brand: #e2703a;
-  --good: #3f9d6b;
-  --warn: #c94f4f;
-  --star: #f0a828;
-  --on-brand: #ffffff;
-  --focus-ring: rgba(226, 112, 58, .35);
+  /* 品牌色按「用途」分成三层，不再一色通吃：
+     --brand       文字/描边，要对白底达标（4.84:1）
+     --brand-fill  大面积填充（选中分类、主按钮），要鲜亮
+     --on-brand    压在该填充上的文字
+     原先把三者合一，为了让白字达标只能把填充压暗，结果就成了咖啡色。 */
+  --brand: #c04e0d;
+  --brand-fill: #ec7620;
+  --good: #2f8059;      /* 白底 4.82（原 #3f9d6b 仅 3.36，13px 提示文字不达标） */
+  --warn: #bd4444;      /* 白底 5.15；白字压其上同为 5.15 */
+  --star: #c08000;      /* 实心星图形：白底 3.32（原 #f0a828 仅 2.03，26px 字形也不达标） */
+  --star-ink: #8a5f00;  /* 星相关小字：星按钮底 5.05、白底 5.65 */
+  --on-brand: #2f2a25;  /* 深字压 --brand-fill 上 4.85（白字只有 2.93，不达标） */
+  /* 危险色上的字必须单独定义：--on-brand 变深后压不住红底（仅 2.76），
+     浅色下红底要白字 5.15 */
+  --on-danger: #ffffff;
+  --focus-ring: #c04e0d; /* 实色焦点环，白底 4.84（原 rgba .35 只有 1.47） */
+  /* 比常态按钮底（--chip #f2ece1）更浅一档：描边去掉后，
+        "可点 / 不可点"只能靠底色深浅 + 字色来分 */
+  --disabled-bg: #f7f3ec;
+  --disabled-ink: #6b6359; /* 米底 5.03：禁用但读得清，不再靠半透明糊掉 */
 
   /* 浅色块：原先散落在各处的 #fff8f2 / #fbf8f2 / #f2ece1 之类 */
   --brand-soft: #fff8f2;
@@ -22,13 +36,16 @@
   --chip-2: #f6f1e8;
   --tag-bg: #f1ece3;
   --tag-lit-bg: #fdf0d6;
-  --tag-lit-ink: #a5701a;
+  --tag-lit-ink: #8a5f00;   /* 星标签底 5.05（原 #a5701a 仅 4.09） */
   --tag-out-bg: #fbe9e9;
-  --star-btn-bg: #fffaf0;
-  --star-btn-hover: #fdf1d9;
-  --warn-btn-bg: #fff6f6;
-  --warn-btn-hover: #fdecec;
-  --star-empty: #ddd3c6;
+  --tag-out-ink: #a83c3c;   /* 出池标签底 5.31（用 --warn 只有 4.4） */
+  /* 评分按钮去掉描边后，底色几乎是白（#fffaf0）——压在同样偏白的
+     结果卡上完全看不出是按钮。换成可见的琥珀小块 */
+  --star-btn-bg: #fbe8c4;
+  --star-btn-hover: #f7dfb1;
+  --warn-btn-bg: #fbe9e9;
+  --warn-btn-hover: #f7dcdc;
+  --star-empty: #8b8172;   /* 未点亮的星：白底 3.5，偏暗的暖灰，与金色实心星拉出明暗对比 */
 
   /* 两条横幅 */
   --warnbar-bg: #fdf0e6;
@@ -39,6 +56,18 @@
   --tip-ink: #2f4f6f;
 
   --radius: 14px;
+  /* 内容栏宽度。顶栏/分类条与卡片都按它对齐，
+     改一个变量三个地方一起变（见下方 .layout 与 .topbar 的 padding 推导） */
+  --shell: 1180px;
+  --tag-ink: #6b6359;   /* 未评标签：米底 #f1ece3 上 4.9:1（--muted 只有 3.9） */
+  /* 结果区虚线占位框的描边。不能复用 --line：深色下 #332f2a 压在 #1e1b18 上
+     只有 1.29:1，整个占位框等于看不见 */
+  --dash: #d8cdbc;
+}
+
+/* 平板窄栏：两栏要到 900 才分，600-899 这段单独收窄 */
+@media (max-width: 899px) {
+  :root { --shell: 680px; }
 }
 
 /* 深色模式：只换颜色变量。跟随系统，不做手动开关 ——
@@ -50,26 +79,35 @@
     --ink: #ece6dc;
     --muted: #9a9188;
     --line: #332f2a;
-    --brand: #ef7f48;
+    --brand: #f08a52;      /* 卡面 6.91 */
+    --brand-fill: #f08a52;
     --good: #59b885;
     --warn: #e06767;
-    --star: #f0b445;
-    --on-brand: #ffffff;
-    --focus-ring: rgba(239, 127, 72, .45);
+    --star: #f0b445;       /* 卡面 9.24，图形与文字都够 */
+    --star-ink: #f0b445;
+    --on-brand: #14120f;   /* 白字压在亮橙上只有 2.69；深字 7.53。
+                              分类选中态与主按钮共用这个变量，一处改全站生效 */
+    --on-danger: #14120f;  /* 深色下红底偏亮，白字只有 3.33，深字 5.61 */
+    --focus-ring: #f08a52; /* 卡面 6.91（原 rgba .45 只有 2.3） */
+    --disabled-bg: #221f1b;
+    --disabled-ink: #8b8378; /* 3.97：禁用态可豁免，但至少读得出字 */
 
     --brand-soft: #2a1d15;
     --tint: #221f1b;
     --chip: #2b2721;
     --chip-2: #262220;
     --tag-bg: #2b2721;
+    --tag-ink: #9a9188;   /* 卡面 4.79 */
+    --dash: #554d43;
     --tag-lit-bg: #3a2c16;
     --tag-lit-ink: #f0b445;
     --tag-out-bg: #3a1f1f;
-    --star-btn-bg: #2a2418;
-    --star-btn-hover: #3a3120;
-    --warn-btn-bg: #2e1c1c;
-    --warn-btn-hover: #3a2323;
-    --star-empty: #4a443c;
+    --tag-out-ink: #e06767;
+    --star-btn-bg: #3a2c16;
+    --star-btn-hover: #463620;
+    --warn-btn-bg: #3d2020;
+    --warn-btn-hover: #482626;
+    --star-empty: #6e6659;   /* 深色下空星要提亮才看得见，与金色实心星仍拉得开 */
 
     --warnbar-bg: #3a2a18;
     --warnbar-line: #5a4227;
@@ -98,23 +136,42 @@ html, body {
 button {
   font: inherit;
   cursor: pointer;
-  border: 1px solid var(--line);
-  background: var(--card);
+  /* 描边改透明而不是删掉：留着这 1px 占位，按钮尺寸和排版不会跳；
+     可见边界交给底色（白底白按钮会直接消失）。 */
+  border: 1px solid transparent;
+  background: var(--chip);
   color: var(--ink);
   border-radius: 10px;
   padding: 9px 14px;
+  /* 手机上长按按钮会选中文字、弹系统菜单，看着像"卡住了" */
+  -webkit-user-select: none;
+  user-select: none;
+  /* 去掉 300ms 双击缩放等待，连点「掷一个」才有即时感 */
+  touch-action: manipulation;
 }
-button:disabled { opacity: .45; cursor: not-allowed; }
+/* 禁用态不再用 opacity 压暗：45% 透明会让主按钮文字只剩 1.64:1，
+   而"先勾选几项"这类按钮上的字恰恰是唯一的使用引导。
+   改成实色（米底 + 深灰字 5.03:1），一眼看出不可点，同时读得清。 */
+button:disabled {
+  cursor: not-allowed;
+  background: var(--disabled-bg);
+  border-color: transparent;
+  color: var(--disabled-ink);
+}
+/* 焦点环与 input 同款，实色、offset 2 让它不与边框糊在一起 */
+button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 button.sm { padding: 4px 9px; font-size: 13px; }
 button.danger { color: var(--warn); }
+/* 文字按钮：14px（原 13px 偏小）+ 上下 8px 内边距，把热区从 28px 抬到 37px。
+   多数二级动作（看历史、看统计、分享、跳过不评）都走这里，是手机上点得最多的元素之一 */
 button.link {
   border: 0; background: transparent; color: var(--brand);
-  padding: 4px 6px; font-size: 13px; text-decoration: underline;
+  padding: 8px 6px; font-size: 14px; text-decoration: underline;
 }
-.btn-primary { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
+.btn-primary { background: var(--brand-fill); color: var(--on-brand); border-color: transparent; }
 /* 危险操作放顶栏，用实心红而非红字，避免在一堆白底按钮里看不出来；
    点击仍有 confirm 二次确认，不会误触就清数据。 */
-.btn-danger { background: var(--warn); color: var(--on-brand); border-color: var(--warn); }
+.btn-danger { background: var(--warn); color: var(--on-danger); border-color: transparent; }
 .btn-danger:hover { filter: brightness(.94); }
 
 input {
@@ -136,8 +193,32 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 }
 
 .muted { color: var(--muted); font-size: 13px; }
-.error { color: var(--warn); font-size: 13px; white-space: pre-wrap; }
-.ok { color: var(--good); font-size: 13px; }
+/* 数字等宽：日期、0/10、掷中次数变化时宽度不跳 */
+.muted, .meta, .stat-row b, .history-date, .tl-flag { font-variant-numeric: tabular-nums; }
+
+/* 提示条改成底部浮层。
+   原来它跟在结果区下面的文档流里，每弹一条就把下方内容顶下去一截 ——
+   一天要点十几次的操作，等于十几次布局抖动；滚到下面时又完全看不到。
+   pointer-events: none 保证它不挡住底下的按钮。 */
+.ok, .error {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  max-width: min(440px, calc(100vw - 32px));
+  margin: 0; padding: 10px 16px; border-radius: 12px;
+  background: var(--ink); color: var(--card);
+  font-size: 14px; line-height: 1.5; text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  z-index: 60; pointer-events: none;
+  animation: toast-in .16s ease-out both;
+}
+.error { background: var(--warn); color: var(--on-danger); white-space: pre-wrap; }
+@keyframes toast-in {
+  from { transform: translate(-50%, 8px); opacity: 0; }
+  to   { transform: translate(-50%, 0);   opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ok, .error { animation: none; }
+}
 .panel-title {
   display: flex; align-items: baseline; justify-content: space-between;
   gap: 8px; flex-wrap: wrap; margin: 0 0 10px;
@@ -155,7 +236,8 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 }
 .tip-close {
   flex: none; border: 0; background: transparent; color: inherit;
-  font-size: 16px; line-height: 1; padding: 0 2px; opacity: .65;
+  font-size: 20px; line-height: 1; padding: 4px 6px; opacity: .75;
+  min-width: 28px; min-height: 28px;
 }
 .tip-close:hover { opacity: 1; }
 
@@ -164,10 +246,11 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
   display: flex; align-items: center; gap: 12px;
   /* 顶部安全区：max() 保证在没有刘海/状态栏的设备上仍是原来的 12px */
   padding: max(12px, env(safe-area-inset-top, 0px)) 16px 12px; background: var(--card);
-  border-bottom: 1px solid var(--line);
+  /* 不画底边框：顶栏和分类条都是白底，中间那条 1px 灰线只是把一整块白色切开。
+     sticky 时靠不透明底色已经能和滚过去的内容分开，不需要再用线提醒 */
   position: sticky; top: 0; z-index: 10;
 }
-.topbar strong { font-size: 16px; white-space: nowrap; }
+.topbar h1 { font-size: 18px; margin: 0; font-weight: 800; white-space: nowrap; }
 .topbar .muted { flex: 1; }
 .topbar-actions { display: flex; gap: 6px; flex: none; }
 
@@ -176,8 +259,9 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 @media (max-width: 430px) {
   .topbar { gap: 8px; padding: max(10px, env(safe-area-inset-top, 0px)) 12px 10px; }
   .topbar .muted { display: none; }
-  .topbar strong { flex: 1; }
-  .topbar-actions button { padding: 8px 10px; font-size: 14px; }
+  .topbar h1 { flex: 1; }
+  /* min-height 把触控区从约 30px 抬到 40px（贴近 44px 建议值，布局不动） */
+  .topbar-actions button { min-height: 40px; padding: 8px 12px; font-size: 14px; }
 }
 
 /* 分类标签：无内边距、无间隙、无圆角；分类多时横向滚动 */
@@ -187,64 +271,126 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
   padding: 0;
   overflow-x: auto;
   scrollbar-width: none;
+  /* 必须给底色。不设时透出 body 的米色，而它上接白色顶栏、下接白色卡片，
+     中间就横出一条米色空带，读起来像"渲染没铺满" */
+  background: var(--card);
 }
 .meal-tabs::-webkit-scrollbar { display: none; }
 
 .meal-tabs .tab {
-  display: flex; align-items: center; gap: 2px; flex: none;
-  border: 1px solid var(--line); border-radius: 0;
-  background: var(--card); padding-right: 3px;
-  /* 间隙变成 0 后，相邻两个标签会各带一条 1px 边框，看起来像 2px 粗线。
-     用 -1px 外边距让相邻边框重叠成一条，这是标签条去掉间距后的必须配套动作。 */
-  margin-right: -1px;
+  display: flex; align-items: center; gap: 0; flex: none;
+  /* 不画边框：标签之间靠留白和选中态的淡底区分就够了，
+     一条条竖线只会把本来就不宽的分类条切碎。
+     原来相邻标签各带 1px 边框、再用 -1px 外边距叠成一条，
+     现在边框没了，这个负边距也一并去掉 */
+  border: 0; border-radius: 0;
+  background: var(--card); padding-right: 2px;
+  margin-right: 0;
+  position: relative;
 }
-.meal-tabs .tab.on { background: var(--brand); border-color: var(--brand); }
+/* 选中态不再是大色块。原来整格填亮橙、上面压深色字，
+   远看一块橙色砖，近看字和图标都显得脏。
+   改成「淡底 + 品牌色文字 + 底部 2px 下划线」：既轻，又不用靠颜色面积喊话。
+   下划线画在 bottom:0 而不是 -1px —— 父级是横向滚动容器，
+   超出盒子的部分会被裁掉 */
+.meal-tabs .tab.on { background: var(--brand-soft); }
+.meal-tabs .tab.on::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0;
+  height: 2px; background: var(--brand);
+}
 .tab-label {
   border: 0; background: transparent; color: inherit;
   padding: 10px 9px; font-weight: 600; white-space: nowrap; border-radius: 0;
 }
-.meal-tabs .tab.on .tab-label { color: var(--on-brand); }
+.meal-tabs .tab.on .tab-label { color: var(--brand); }
 .tab-act {
   border: 0; background: transparent; color: inherit; opacity: .7;
-  padding: 9px 6px; font-size: 13px; border-radius: 0;
+  padding: 9px 0; border-radius: 0;
+  /* 40px 被撑开太多：两个 20px 图标各自居中在 40px 盒里，边缘要空出 20px，
+     看起来像隔了一条。收到 36px，热区仍有 36×40。 */
+  min-width: 36px; min-height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
-.meal-tabs .tab.on .tab-act { color: var(--on-brand); opacity: .9; }
+.meal-tabs .tab.on .tab-act { color: var(--brand); opacity: .65; }
 .tab-act:hover { opacity: 1; }
 /* 与 .row-actions 同款：SVG 块级化，消除行内元素下行间隙 */
 .tab-act svg { display: block; }
 .tab-add {
   flex: none; min-width: 46px; padding: 10px 0;
-  border: 1px solid var(--line); border-style: dashed; border-radius: 0;
-  font-size: 17px; color: var(--brand);
-  margin-right: -1px;
+  /* 边框一并去掉：标签都没有边框了，只剩这一个虚线方框，
+     看起来像画了一半的表格。加号本身就是"新建"的通用符号。
+     底色必须保留 —— 它是 sticky 的，滚动时要挡住下面的标签 */
+  border: 0; border-radius: 0;
+  font-size: 18px; color: var(--brand);
+  /* 和选中标签的「×」之间留 8px：两者都是 30px 以上的热区，
+     贴在一起容易点「新建」却点到「删除」（删除现在有确认框兜底，但仍要多一步） */
+  margin: 0 0 0 8px;
   /* 分类多了以后标签条会横向滚动，＋ 会被推到可视区外。
      吸附在右侧边缘，保证任何时候都看得到、点得到。 */
   position: sticky; right: 0; z-index: 2;
   background: var(--card);
 }
 .tab-edit { width: 120px; padding: 8px 9px; border-radius: 0; border: 0; background: transparent; color: inherit; }
-.meal-tabs .tab.on .tab-edit { color: var(--on-brand); }
-/* 全局聚焦环是橘色，叠在橘色选中标签上几乎看不见；
-   而新建分类时这个输入框会自动聚焦，环就是唯一的"你在编辑"信号 */
-.meal-tabs .tab.on .tab-edit:focus { outline-color: rgba(255, 255, 255, .75); }
+.meal-tabs .tab.on .tab-edit { color: var(--brand); }
 .tab-limit { align-self: center; flex: none; padding-left: 8px; }
 
+/* 顶栏与分类条跟着内容网格走。
+   之前 .layout 有 max-width:1180 + auto 边距，而顶栏/分类条是全宽 ——
+   1440 下标题在 x=16、卡片左边缘在 x=130，视觉锚点散成三段。
+   这里用 padding 推、不加 max-width：sticky 元素一旦限宽，
+   两侧会露出底下滚过去的内容。放在 .meal-tabs 定义之后，避免被它的 padding:0 覆盖 */
+@media (min-width: 720px) {
+  .topbar,
+  .meal-tabs {
+    padding-left: max(16px, calc((100% - var(--shell)) / 2));
+    padding-right: max(16px, calc((100% - var(--shell)) / 2));
+  }
+}
+
 .layout {
-  display: grid; grid-template-columns: 1fr; gap: 14px;
+  display: grid; grid-template-columns: 1fr; gap: 0;
   padding: 0;            /* 按需求去内边距：两栏铺到屏幕左右边缘，上下也无留白 */
 }
+/* 单列时两块卡片上下相接：不保留 14px 的行间距（那会透出一条米色空档），
+   同时去掉第二块的上边框，避免两条 1px 叠成 2px。分隔由第一块的底边框负责 */
+@media (max-width: 899px) {
+  .layout > .card + .card { border-top: 0; }
+  /* 分类条与第一张卡同是白底：卡片那条 1px 顶边框正好贴在选中标签
+     2px 下划线下面，两条线差 1px 并排，看着像重影。
+     去掉卡片的顶边框，让下划线成为这里唯一的一条线。 */
+  .layout > .card:first-child { border-top: 0; }
+  /* 单列时卡片是满宽的，左右两条边框正好压在屏幕边缘，
+     远看像页面左右各挂了一条竖线。去掉，边界交给留白 */
+  .layout > .card { border-left: 0; border-right: 0; }
+}
 @media (min-width: 900px) {
-  .layout { grid-template-columns: 380px 1fr; align-items: start; max-width: 1180px; margin: 0 auto; }
+  .layout { grid-template-columns: 380px 1fr; align-items: start; gap: 14px; max-width: var(--shell); margin: 0 auto; }
+  /* 宽屏两栏时卡片保留自己的四条边框（去掉顶边会显得框缺了一条），
+     那条 1px 顶边框正好在标签下面当分隔线；下划线再压上去又是两条，
+     所以宽屏只靠「淡底 + 橙字」表示选中，下划线退场 */
+  .meal-tabs .tab.on::after { display: none; }
+}
+/* 600–899 是原先的体验洼地：单列被拉满到 768px，
+   清单每行菜名与「未评」之间空出 400px，「掷一个」被拉成 660px 的长条。
+   两栏要到 900 才出现，中间这段单独收窄 + 居中。 */
+@media (min-width: 720px) and (max-width: 899px) {
+  .layout { max-width: var(--shell); margin-inline: auto; }
 }
 
 /* ---------- 今日概览：竖排列表，一行一个分类 ---------- */
 /* 原来是横向格子，分类一多就被挤得很窄；改成列表后每个分类独占一行，
    多了就自然往下排，不需要横向滚动。 */
-.today-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+/* 这块整体不画线：标题去掉后顶线会悬空，行与行之间也用不上分隔 ——
+   每行是「分类 · 菜名 · 星级」的独立信息块，靠 10px 内边距和当前行的高亮底色
+   就已经分得清，再加横线只是把 2-4 行的小列表切成碎片 */
+.today-list { list-style: none; margin: 0; padding: 0; }
 .today-list li {
   display: flex; align-items: center; gap: 10px;
-  padding: 9px 2px; border-bottom: 1px solid var(--line);
+  /* 左右各留 12px：原来左右只有 2px，文字几乎贴着卡片边缘起排，
+     选中行的高亮底色也顶到边上，看着像被裁掉一截 */
+  padding: 10px 12px;
   font-size: 14px; cursor: pointer;
+  -webkit-user-select: none; user-select: none;
 }
 .today-list li.now { background: var(--brand-soft); }
 .tl-name {
@@ -255,7 +401,7 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 .tl-dish { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .today-list li.pending .tl-dish { color: var(--brand); font-weight: 600; }
 .today-list li.done .tl-dish { color: var(--good); }
-.tl-flag { flex: none; color: var(--star); font-size: 12px; }
+.tl-flag { flex: none; color: var(--star-ink); font-size: 12px; }
 .tl-flag.skip { color: var(--muted); }
 
 /* ---------- 候选 ---------- */
@@ -264,8 +410,8 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
   display: flex; align-items: center; gap: 4px;
   background: var(--chip); border-radius: 999px; padding: 5px 6px 5px 12px; font-size: 14px;
 }
-.pick-list li button { border: 0; background: transparent; padding: 0 4px; color: var(--muted); font-size: 16px; }
-.star-mini { color: var(--star); font-size: 12px; }
+.pick-list li button { border: 0; background: transparent; padding: 2px 7px; color: var(--muted); font-size: 18px; line-height: 1; }
+.star-mini { color: var(--star-ink); font-size: 12px; }
 
 /* ---------- 抽签与结果 ---------- */
 /* 两个掷按钮并排：左侧是不看勾选的「全部随机」，右侧是常规「掷一个」 */
@@ -273,25 +419,38 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 .draw-btn {
   flex: 1 1 auto; padding: 16px 0; font-size: 18px; font-weight: 700;
   border-radius: var(--radius);
-  background: var(--brand); color: var(--on-brand); border-color: var(--brand);
+  background: var(--brand-fill); color: var(--on-brand); border-color: transparent;
 }
-/* 次要动作：白底橙字描边，不与主按钮抢注意力 */
+/* 次要动作：淡底橙字。原先靠一圈橙描边刷存在感，去线之后
+   白底白按钮会直接消失，所以改用淡色底 —— 仍然比主按钮轻 */
 .draw-alt {
   flex: 0 0 auto; padding: 0 14px; font-size: 15px; font-weight: 700;
   border-radius: var(--radius);
-  background: var(--card); color: var(--brand); border-color: var(--brand);
+  background: var(--brand-soft); color: var(--brand); border-color: transparent;
 }
-.draw-alt:hover { background: var(--brand-soft); }
-.all-draw { display: block; width: 100%; margin-top: 6px; text-align: center; }
+.draw-alt:hover { background: var(--tint); }
 
 .result {
-  margin-top: 14px; padding: 18px 14px; text-align: center;
-  border: 2px dashed var(--line); border-radius: var(--radius);
-  min-height: 92px; display: grid; place-content: center; gap: 8px;
+  margin-top: 14px; padding: 16px 14px; text-align: center;
+  border: 2px dashed var(--dash); border-radius: var(--radius);
+  /* 92px 的空占位把首屏最大的一块留给了一句"结果会出现在这里"，
+     压到 64 —— 有结果时内容自己会把高度撑开，不受影响 */
+  min-height: 64px; display: grid; place-content: center; gap: 6px;
+  /* 给 sr-only 播报节点一个定位上下文，避免它按视口定位 */
+  position: relative;
 }
 .result.has { border-style: solid; border-color: var(--brand); background: var(--brand-soft); }
-.result .dish-name { font-size: 26px; font-weight: 700; }
+.result .dish-name { font-size: 28px; font-weight: 700; }
 .result .empty { color: var(--muted); }
+
+/* 结果落地：全站唯一"有分量"的动效，也是「掷一个」这个承诺的兑现时刻。
+   只动 transform 与 opacity，180ms，曲线带一点回弹收尾；
+   前庭敏感用户在下面统一关掉。 */
+.result.has { animation: settle .18s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes settle {
+  from { transform: scale(.96); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
 
 /* 掷的过程：滚动展示候选名，纯视觉反馈。
    注意这只是动画，真正的结果由服务端式抽签（crypto）决定，动画不参与。 */
@@ -301,30 +460,83 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
   from { transform: translateY(-3px); opacity: .5; }
   to   { transform: translateY(3px); opacity: 1; }
 }
+/* 前庭敏感用户：停掉滚动动画（JS 侧也会跳过轮盘 setInterval），
+   结果落地的一次缩放也一起去掉 */
+@media (prefers-reduced-motion: reduce) {
+  .result.rolling .dish-name { animation: none; }
+  .result.has { animation: none; }
+}
 
-.stars { display: flex; gap: 2px; justify-content: center; font-size: 26px; line-height: 1; }
-.stars span { color: var(--star-empty); }
-.stars span.on { color: var(--star); }
-.stars.readonly span { cursor: default; }
+/* 只给读屏看的播报节点：滚动中的菜名对辅助技术是噪音，
+   最终结果由它在定格后播报一次 */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* 星空渐变容器：只放 <defs>，不参与布局 */
+.svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* ---------- 只读星级：金色填充 ----------
+   已填：金黄色渐变（顶部亮 → 底部暗金），并描一圈更深的金边，
+        让星形轮廓在浅背景上仍然立得住；
+   未填：偏暗的暖灰实心。
+   两者并排就形成「亮 / 暗」的直接对比，不用数星星也知道几分。 */
+.stars {
+  display: flex; gap: 5px; justify-content: center; align-items: center;
+  line-height: 1;
+}
+.star-ic { width: 32px; height: 32px; display: block; flex: none; }
+.star-ic .fill { fill: var(--star-empty); }
+.star-ic.on .fill {
+  fill: url(#starGold);
+  /* 描边只用来给星形定轮廓，压到 .5 并调亮，避免变成"贴纸风" */
+  stroke: #b07c05; stroke-width: .5; stroke-linejoin: round;
+}
+.stars.readonly .star-ic { cursor: default; }
 
 .rate-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
 .rate-row.compact { margin-top: 4px; }
-.rate-star { padding: 9px 13px; border-color: var(--star); color: var(--star); font-weight: 600; background: var(--star-btn-bg); }
+/* 星按钮是评分主入口：文字色走 --star-ink（星底 5.05:1），
+   原来直接用 --star 只有 1.95:1，等于看不清几个星 */
+.rate-star {
+  padding: 9px 13px; min-height: 44px; min-width: 52px;
+  border-color: transparent; color: var(--star-ink); font-weight: 600;
+  background: var(--star-btn-bg);
+  /* 没有描边，改用极轻的暖色投影托一下，暗示"这是个可按的块" */
+  box-shadow: 0 1px 2px rgba(120, 80, 20, .1);
+}
 .rate-star:hover { background: var(--star-btn-hover); }
-.rate-zero { padding: 8px 12px; border-color: var(--warn); color: var(--warn); background: var(--warn-btn-bg); }
+/* 行内小号星按钮（清单里的星级编辑、已跳过后的补评）：保持紧凑，别再撑 44 */
+.rate-star.sm { min-height: 36px; min-width: 44px; }
+.rate-zero {
+  padding: 8px 12px; min-height: 44px;
+  border-color: transparent; color: var(--tag-out-ink); background: var(--warn-btn-bg);
+  box-shadow: 0 1px 2px rgba(120, 60, 60, .1);
+}
 .rate-zero:hover { background: var(--warn-btn-hover); }
 
 /* ---------- 历史 ---------- */
-.link-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.link-row {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: 2px 10px; margin-top: 12px;
+}
+/* 这一行是三个并排的次级文字动作，字号和左右内边距各收一档：
+   14px + 6px 内边距在 390px 下排不进一行。放不下时 flex-wrap 自动折行 */
+.link-row .link { font-size: 13px; padding: 8px 4px; }
+/* 禁用态要看得出来：原先 .link 的 color 覆盖了 button:disabled，
+   "今天没有可掷的分类"看着像可点的链接，点下去没反应 */
+.link-row .link:disabled { color: var(--disabled-ink); text-decoration: none; }
 .history { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
 .history-day { display: flex; flex-wrap: wrap; gap: 6px; padding: 5px 0; font-size: 13px; border-bottom: 1px dashed var(--line); }
 .history-date { color: var(--muted); flex: none; }
 .history-item { background: var(--chip-2); border-radius: 8px; padding: 1px 8px; }
-.history-item b { color: var(--star); font-weight: 600; margin-left: 3px; }
+.history-item b { color: var(--star-ink); font-weight: 600; margin-left: 3px; }
 .history-item i { color: var(--muted); font-style: normal; margin-left: 3px; }
 
 /* ---------- 统计 ---------- */
 .stats { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; font-size: 13px; }
+.stat-head { margin: 0 0 6px; font-weight: 600; }
 .stat-row {
   display: flex; align-items: baseline; justify-content: space-between;
   gap: 12px; padding: 4px 0; border-bottom: 1px dashed var(--line);
@@ -333,19 +545,33 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 .stat-row b { font-weight: 600; text-align: right; }
 .stat-block { margin-top: 10px; }
 .oldest { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
-.oldest .history-item b { color: var(--star); }
+.oldest .history-item b { color: var(--star-ink); }
 
 /* ---------- 菜库（自己的榜） ---------- */
-.sort-switch { display: flex; gap: 4px; }
-.sort-switch button { padding: 7px 10px; font-size: 12px; border-radius: 999px; }
-.sort-switch button.on { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
+/* 排序：居中的纯文字切换「星级 | 次数 | 最新」，选中项用品牌色高亮。
+   不再用药丸按钮 —— 它是视图偏好而不是操作，按钮样式会把它抬到和
+   「掷一个」同级的重量；居中放也让它脱离标题行，独占一条视线 */
+.sort-switch {
+  display: flex; justify-content: center; align-items: center;
+  /* 下面紧接第一行菜：14px 外边距 + 上下各 8px 内边距，视觉缝隙到了 30px，
+     比行与行之间还宽。收到 6px，把这块的呼吸交给菜行自己的内边距 */
+  gap: 10px; margin-bottom: 6px;
+}
+.sort-switch .sep { color: var(--line); font-size: 12px; }
+.sort-switch button {
+  border: 0; background: transparent;
+  padding: 6px 2px; min-width: 40px; min-height: 32px;
+  font-size: 13px; color: var(--muted); border-radius: 0;
+}
+.sort-switch button.on { color: var(--brand); font-weight: 700; }
 
 /* 输入框 + 加入：强制一行。全局 input 的 width:100% 在 flex 容器里
    会把两个元素顶得挤出宽度，所以这里改成 flex 伸缩 + min-width:0，
-   同时把按钮锁成 flex:none，窄屏下也不会被压扁掉行。 */
+   同时把按钮锁成 flex:none，窄屏下也不会被压扁掉行。
+   位置在列表末尾，所以上留白、下不留（下面由 .share-row 的 margin 接管） */
 .add-row {
   display: flex; flex-wrap: nowrap; align-items: center;
-  gap: 8px; margin-bottom: 10px;
+  gap: 8px; margin: 10px 0 0;
 }
 .add-row input {
   flex: 1 1 auto; width: auto; min-width: 0;
@@ -354,47 +580,57 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
      （padding 从 8px 收到 6px，把 16px 字撑高的行高压回原来大小，布局不动） */
   padding: 6px 12px; font-size: 16px;
 }
-.add-row .btn-primary { flex: none; padding: 8px 14px; font-size: 14px; }
+.add-row .btn-primary { flex: none; padding: 8px 14px; font-size: 14px; min-height: 40px; }
 
+.dish-list > .dish-wrap:last-child { border-bottom: 0; }
 .dish-wrap { border-bottom: 1px solid var(--line); }
-.dish-wrap:last-of-type { border-bottom: 0; }
-.dish-wrap.out { opacity: .6; }
+/* 最后一行的底线去掉：它下面接的是「加一项」，留着那条线
+   会让输入框看起来像被框在表格里。
+   早先想用 .dish-wrap:last-of-type，但它比的是「最后一个 div 兄弟」，
+   而卡片里最后一个 div 是 .share-row —— 永远不命中。现在列表外面
+   套了 .dish-list，:last-child 才可靠。 */
+/* 出池状态由 .tag.out 红色标签表达，不再整行压透明度——
+   整体 opacity 会把正文对比度拉到 4:1 以下（WCAG AA 不达标） */
 .dish-row { display: flex; align-items: center; gap: 8px; padding: 8px 2px; }
-.dish-row input[type='checkbox'] { width: 20px; height: 20px; flex: none; accent-color: var(--brand); margin: 0; }
-.dish-row .rank { width: 20px; text-align: right; color: var(--muted); font-size: 12px; flex: none; }
+.dish-row input[type='checkbox'] { width: 20px; height: 20px; flex: none; accent-color: var(--brand-fill); margin: 0; }
 .dish-row .name {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   cursor: default;
 }
 .dish-wrap.picked .name { color: var(--brand); font-weight: 600; }
 .dish-row .meta { font-size: 12px; color: var(--muted); flex: none; }
+/* 320px 这一档还差一点：菜名 71px 仍装不下「皮蛋瘦肉粥」。
+   掷中次数是最不重要的一格信息，极窄屏先让位 */
+@media (max-width: 359px) {
+  .dish-row .meta { display: none; }
+}
 .dish-row .edit-input { flex: 1; min-width: 0; padding: 5px 8px; }
 .row-actions { display: flex; gap: 2px; flex: none; }
-.row-actions button { border: 0; background: transparent; padding: 3px 5px; font-size: 14px; color: var(--muted); }
+/* 行内图标的点击热区用真实内边距撑到 40×40，不再靠透明伪元素外扩 ——
+   外扩会让"改名"和"删除"的命中区互相压到对方身上（后画的那个赢），
+   点删除却删了相邻按钮的隐患比小热区更糟。 */
+.row-actions button { border: 0; background: transparent; padding: 10px; font-size: 14px; color: var(--muted); }
 /* SVG 图标按钮：块级化消除行内元素的下行间隙，保证两个图标垂直居中对齐 */
 .row-actions button svg { display: block; }
 
 /* ---------- 移动端点击热区 ----------
-   视觉尺寸不变，用透明伪元素把可点区域向四周撑大 7px（合计约 34-40px），
-   让手指落点宽容一些。只对「四周没有其他可点元素」的小图标按钮用这一招，
-   避免抢到隔壁按钮的点击；有可点邻居的（分类操作、排序切换）走真实内边距。 */
-.row-actions button,
+   只对「四周没有其他可点元素」的小目标用透明伪元素外扩，
+   有可点邻居的（分类操作、排序切换、行内图标）一律走真实内边距。 */
 .pick-list li button,
 .tag.clickable,
 .tip-close { position: relative; }
-.row-actions button::after,
 .pick-list li button::after,
 .tag.clickable::after,
 .tip-close::after {
-  content: ''; position: absolute; inset: -7px;
+  content: ''; position: absolute; inset: -8px;
 }
 
 .tag {
-  font-size: 11px; padding: 2px 7px; border-radius: 999px; flex: none;
-  background: var(--tag-bg); color: var(--muted); border: 0;
+  font-size: 12px; padding: 4px 9px; border-radius: 999px; flex: none;
+  background: var(--tag-bg); color: var(--tag-ink); border: 0;
 }
 .tag.lit { background: var(--tag-lit-bg); color: var(--tag-lit-ink); }
-.tag.out { background: var(--tag-out-bg); color: var(--warn); }
+.tag.out { background: var(--tag-out-bg); color: var(--tag-out-ink); }
 .tag.clickable { cursor: pointer; }
 .tag.clickable:hover { filter: brightness(.94); }
 
@@ -404,7 +640,9 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
 }
 .legend { margin-top: 12px; line-height: 1.7; }
 /* 分享入口放在清单底部：它属于低频动作，不该占顶栏位置 */
-.share-row { display: flex; gap: 12px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+/* 分享入口放在清单底部：它属于低频动作，不该占顶栏位置。
+   分隔线由上方菜行的 border-bottom 提供，这里不再加 border-top */
+.share-row { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 16px; }
 .dish-row.empty { justify-content: center; padding: 18px 0; }
 
 /* ---------- 应用内对话框 ----------
@@ -431,3 +669,7 @@ input:focus { outline: 2px solid var(--focus-ring); border-color: var(--brand); 
   font-size: 16px; line-height: 1.5;
 }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+/* 没有取消按钮时（分享码弹窗），确认按钮居中并给个最小宽度，
+   别让一个孤零零的按钮贴在右下角 */
+.modal-actions.single { justify-content: center; }
+.modal-actions.single .btn-primary { min-width: 140px; }

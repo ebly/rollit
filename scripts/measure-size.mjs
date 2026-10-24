@@ -5,16 +5,9 @@
  * 目的不是"localStorage 能存多少"（那是浏览器给的、且各版本不同），
  * 而是"本站会用到多少" —— 只有后者是你真正需要关心的那个数。
  */
-const store = new Map();
-globalThis.localStorage = {
-  getItem: (k) => (store.has(k) ? store.get(k) : null),
-  setItem: (k, v) => store.set(k, String(v)),
-  removeItem: (k) => store.delete(k),
-};
-if (!globalThis.crypto) {
-  const { webcrypto } = await import('node:crypto');
-  globalThis.crypto = webcrypto;
-}
+import { installNodeShims } from './_node-shim.mjs';
+
+await installNodeShims();
 
 const S = await import('../src/store.js?case=size');
 const { gzipSync } = await import('node:zlib');
